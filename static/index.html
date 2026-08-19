@@ -1,0 +1,1559 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Stockroom — AI Loss Prevention</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
+<style>
+  :root{
+    --bg:#0A0E17; --bg2:#0D1220;
+    --glass:rgba(255,255,255,.045); --glass-hi:rgba(255,255,255,.08);
+    --line:rgba(255,255,255,.09); --line-hi:rgba(255,255,255,.18);
+    --text:#EDEFF5; --steel:#8890A3;
+    --mint:#00E6A8; --mint-soft:rgba(0,230,168,.14); --mint-ink:#00382A;
+    --violet:#7C6CFF; --violet-soft:rgba(124,108,255,.16);
+    --red:#FF5C72; --red-soft:rgba(255,92,114,.14);
+    --amber:#FFC24B; --amber-soft:rgba(255,194,75,.14);
+    --radius:14px;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);}
+  #app, #app *{font-family:'Inter',sans-serif;color:var(--text);}
+  #app{
+    min-height:100vh;display:flex;position:relative;
+    background:
+      radial-gradient(1100px 620px at 88% -8%, rgba(124,108,255,.16), transparent 60%),
+      radial-gradient(900px 560px at -8% 18%, rgba(0,230,168,.12), transparent 55%),
+      linear-gradient(180deg, var(--bg) 0%, var(--bg2) 100%);
+  }
+  .mono{font-family:'IBM Plex Mono',monospace;}
+  h1,h2,h3,.display{font-family:'Space Grotesk',sans-serif;}
+  .grad-text{background:linear-gradient(90deg,#fff 0%,var(--mint) 60%,var(--violet) 100%);-webkit-background-clip:text;background-clip:text;color:transparent;}
+
+  .glass{background:var(--glass);border:1px solid var(--line);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);}
+
+  /* ---------- signature: pulse-scan bar (evokes AI signal / barcode) ---------- */
+  .stripe{
+    background:repeating-linear-gradient(90deg,
+      var(--mint) 0 2px, transparent 2px 4px, var(--violet) 4px 5px, transparent 5px 9px,
+      var(--mint) 9px 12px, transparent 12px 14px, var(--violet) 14px 15px, transparent 15px 20px);
+    box-shadow:0 0 18px rgba(0,230,168,.35);
+  }
+
+  /* ---------- layout ---------- */
+  .sidebar{width:92px;background:rgba(10,14,23,.6);border-right:1px solid var(--line);backdrop-filter:blur(20px);
+    display:flex;flex-direction:column;align-items:center;padding:22px 0;flex-shrink:0;position:relative;z-index:2;}
+  .sidebar .logo{width:38px;height:28px;border-radius:4px;margin-bottom:26px;
+    background:repeating-linear-gradient(90deg, var(--mint) 0 2px, transparent 2px 4px, var(--mint) 4px 5px, transparent 5px 8px, var(--mint) 8px 10px, transparent 10px 13px);
+    box-shadow:0 0 16px rgba(0,230,168,.5);}
+  .nav-btn{width:62px;height:56px;border:none;background:transparent;color:var(--steel);border-radius:10px;cursor:pointer;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;font-size:10.5px;font-weight:600;letter-spacing:.03em;
+    margin-bottom:6px;transition:background .15s,color .15s,box-shadow .15s;}
+  .nav-btn svg{width:19px;height:19px;stroke:currentColor;fill:none;stroke-width:1.8;}
+  .nav-btn:hover{background:var(--glass-hi);color:var(--text);}
+  .nav-btn.active{background:var(--mint-soft);color:var(--mint);box-shadow:inset 0 0 0 1px rgba(0,230,168,.4), 0 0 18px rgba(0,230,168,.18);}
+  .nav-spacer{flex:1;}
+  .nav-logout:hover{background:var(--red-soft);color:var(--red);}
+
+  .main{flex:1;min-width:0;padding:36px 44px;max-width:1180px;position:relative;z-index:2;}
+  @media (max-width:720px){.main{padding:20px;}.sidebar{width:64px;}.nav-btn{width:48px;font-size:8.5px;}}
+
+  .topline{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:6px;flex-wrap:wrap;gap:10px;}
+  .eyebrow{font-family:'IBM Plex Mono',monospace;font-size:11.5px;letter-spacing:.14em;color:var(--mint);text-transform:uppercase;}
+  h1.pagehead{font-size:30px;margin:2px 0 26px;font-weight:700;}
+
+  /* ---------- buttons / inputs ---------- */
+  .btn{font-family:'Inter',sans-serif;font-weight:600;font-size:14px;border-radius:10px;border:1px solid var(--line-hi);
+    background:var(--glass-hi);color:var(--text);padding:11px 18px;cursor:pointer;transition:transform .1s,box-shadow .15s,border-color .15s;}
+  .btn:hover{border-color:rgba(255,255,255,.32);}
+  .btn:active{transform:scale(.98);}
+  .btn.ghost{background:transparent;}
+  .btn.amber{background:linear-gradient(135deg,var(--mint),#00C293);border:none;color:#00281E;box-shadow:0 0 24px rgba(0,230,168,.35);}
+  .btn.amber:hover{box-shadow:0 0 32px rgba(0,230,168,.55);}
+  .btn.red{background:var(--red);border:none;color:#2A0008;}
+  .btn.green{background:var(--mint);border:none;color:#00281E;}
+  .btn.sm{padding:6px 12px;font-size:12.5px;border-radius:7px;}
+  .btn:disabled{opacity:.4;cursor:not-allowed;box-shadow:none;}
+  .btn.block{width:100%;}
+
+  label{font-size:11.5px;font-weight:600;color:var(--steel);text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:6px;}
+  input,select{width:100%;font-family:'IBM Plex Mono',monospace;font-size:14px;padding:10px 12px;border-radius:9px;
+    border:1px solid var(--line);background:rgba(255,255,255,.03);color:var(--text);}
+  input::placeholder{color:#565E70;}
+  input:focus,select:focus{outline:none;border-color:var(--mint);box-shadow:0 0 0 3px rgba(0,230,168,.18);}
+  .field{margin-bottom:14px;}
+  .field-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+  .check-row{display:flex;align-items:center;gap:8px;margin-bottom:14px;}
+  .check-row input{width:auto;}
+  .check-row label{margin:0;text-transform:none;font-size:13.5px;letter-spacing:0;color:var(--text);}
+
+  /* ---------- login ---------- */
+  .login-wrap{min-height:100vh;width:100%;display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden;
+    background:
+      radial-gradient(900px 500px at 15% 10%, rgba(0,230,168,.16), transparent 55%),
+      radial-gradient(900px 600px at 90% 90%, rgba(124,108,255,.18), transparent 55%),
+      var(--bg);}
+  .ticket{width:390px;border-radius:18px;overflow:hidden;position:relative;z-index:2;
+    background:var(--glass);border:1px solid var(--line-hi);backdrop-filter:blur(24px);
+    box-shadow:0 40px 90px rgba(0,0,0,.55), 0 0 60px rgba(0,230,168,.08);}
+  .ticket-head{padding:26px 28px 20px;border-bottom:1px solid var(--line);}
+  .ticket-head .stripe{height:16px;border-radius:4px;margin-bottom:18px;}
+  .ticket-head h1{font-size:23px;margin:0;font-weight:700;}
+  .ticket-head p{font-size:11.5px;color:var(--steel);margin:5px 0 0;font-family:'IBM Plex Mono',monospace;letter-spacing:.1em;}
+  .ticket-body{padding:24px 28px 30px;}
+  .tabs{display:flex;gap:4px;background:rgba(255,255,255,.04);border-radius:10px;padding:3px;margin-bottom:20px;}
+  .tab{flex:1;text-align:center;padding:8px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;color:var(--steel);}
+  .tab.active{background:var(--glass-hi);color:var(--text);}
+  .err-msg{background:var(--red-soft);color:#FF8B9B;border:1px solid rgba(255,92,114,.3);border-radius:9px;padding:10px 12px;font-size:13px;margin-bottom:16px;font-weight:500;}
+  .ok-msg{background:var(--mint-soft);color:var(--mint);border:1px solid rgba(0,230,168,.3);border-radius:9px;padding:10px 12px;font-size:13px;margin-bottom:16px;font-weight:500;}
+  .info-msg{background:var(--violet-soft);color:#C3BAFF;border:1px solid rgba(124,108,255,.3);border-radius:9px;padding:10px 12px;font-size:12.5px;margin-bottom:14px;line-height:1.5;}
+
+  /* ---------- product table ---------- */
+  .toolbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;gap:12px;flex-wrap:wrap;}
+  .search-box{position:relative;flex:1;max-width:320px;}
+  .search-box input{padding-left:34px;}
+  .search-box svg{position:absolute;left:11px;top:50%;transform:translateY(-50%);width:15px;height:15px;stroke:var(--steel);fill:none;stroke-width:2;}
+
+  .card{background:var(--glass);border-radius:var(--radius);border:1px solid var(--line);overflow:hidden;margin-bottom:20px;backdrop-filter:blur(16px);}
+  .row{display:grid;grid-template-columns:5px 1.3fr 1.4fr .8fr .8fr .9fr auto;align-items:center;gap:16px;padding:14px 18px;border-bottom:1px solid var(--line);}
+  .row.head{background:rgba(255,255,255,.02);}
+  .row.head span{font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--steel);font-weight:700;}
+  .row:last-child{border-bottom:none;}
+  .row:not(.head):hover{background:rgba(255,255,255,.03);}
+  .stock-flag{width:5px;align-self:stretch;border-radius:3px;}
+  .flag-ok{background:var(--mint);box-shadow:0 0 8px rgba(0,230,168,.6);}
+  .flag-low{background:var(--amber);box-shadow:0 0 8px rgba(255,194,75,.5);}
+  .flag-out{background:var(--red);box-shadow:0 0 8px rgba(255,92,114,.5);}
+  .flag-na{background:var(--line-hi);}
+  .name-cell{font-weight:600;font-size:13.5px;}
+  .sub{font-size:11px;color:var(--steel);font-family:'IBM Plex Mono',monospace;}
+  .row-actions{display:flex;gap:6px;}
+  .icon-btn{width:29px;height:29px;border-radius:8px;border:1px solid var(--line);background:rgba(255,255,255,.03);cursor:pointer;display:flex;align-items:center;justify-content:center;}
+  .icon-btn svg{width:13px;height:13px;stroke:var(--text);fill:none;stroke-width:2;}
+  .icon-btn:hover{background:var(--glass-hi);border-color:var(--line-hi);}
+  .empty-state{padding:56px 20px;text-align:center;color:var(--steel);}
+  .empty-state svg{width:38px;height:38px;stroke:var(--line-hi);stroke-width:1.5;margin-bottom:12px;}
+
+  .overlay{position:fixed;inset:0;background:rgba(4,6,10,.7);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;z-index:50;padding:20px;overflow-y:auto;}
+  .modal{width:460px;max-width:100%;background:#11151F;border:1px solid var(--line-hi);border-radius:16px;padding:26px 28px;max-height:88vh;overflow-y:auto;
+    box-shadow:0 30px 80px rgba(0,0,0,.6);}
+  .modal h2{font-size:19px;margin:0 0 18px;font-weight:700;}
+  .modal-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:20px;}
+
+  /* ---------- scan ---------- */
+  .scan-grid{display:grid;grid-template-columns:1fr 1fr;gap:22px;}
+  @media (max-width:900px){.scan-grid{grid-template-columns:1fr;}}
+  .scan-panel{background:var(--glass);border-radius:var(--radius);border:1px solid var(--line);padding:22px;backdrop-filter:blur(16px);}
+  .scan-panel h3{font-size:13px;text-transform:uppercase;letter-spacing:.05em;margin:0 0 14px;color:var(--steel);}
+  .viewfinder{position:relative;aspect-ratio:4/3;background:#000;border-radius:10px;overflow:hidden;display:flex;align-items:center;justify-content:center;border:1px solid var(--line);}
+  .reader-el{width:100%;height:100%;}
+  .reader-el video{object-fit:cover;}
+  .corner{position:absolute;width:26px;height:26px;pointer-events:none;}
+  .c-tl{top:14px;left:14px;border-top:3px solid var(--mint);border-left:3px solid var(--mint);}
+  .c-tr{top:14px;right:14px;border-top:3px solid var(--mint);border-right:3px solid var(--mint);}
+  .c-bl{bottom:14px;left:14px;border-bottom:3px solid var(--mint);border-left:3px solid var(--mint);}
+  .c-br{bottom:14px;right:14px;border-bottom:3px solid var(--mint);border-right:3px solid var(--mint);}
+  .cam-placeholder{color:var(--steel);font-size:13px;text-align:center;padding:20px;}
+  .usb-hint{font-size:12px;color:var(--steel);margin-top:8px;line-height:1.5;}
+  .scan-result{margin-top:18px;padding:16px;border-radius:10px;background:rgba(255,255,255,.03);border:1px dashed var(--line-hi);}
+  .scan-result.found{border-style:solid;border-color:rgba(0,230,168,.4);background:var(--mint-soft);}
+  .scan-result.notfound{border-style:solid;border-color:rgba(255,92,114,.4);background:var(--red-soft);}
+  .pulse-dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--red);margin-right:6px;animation:pulse 1.2s infinite;box-shadow:0 0 8px rgba(255,92,114,.7);}
+  @keyframes pulse{0%,100%{opacity:1;}50%{opacity:.3;}}
+
+  .badge{display:inline-block;padding:3px 9px;border-radius:20px;font-size:10.5px;font-weight:700;font-family:'IBM Plex Mono',monospace;letter-spacing:.02em;}
+  .badge.ok{background:var(--mint-soft);color:var(--mint);}
+  .badge.low{background:var(--amber-soft);color:var(--amber);}
+  .badge.out{background:var(--red-soft);color:#FF8B9B;}
+  .badge.na{background:rgba(255,255,255,.05);color:var(--steel);}
+
+  /* stat cards */
+  .stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:14px;margin-bottom:24px;}
+  .stat-card{background:var(--glass);border:1px solid var(--line);border-radius:12px;padding:18px 20px;backdrop-filter:blur(16px);position:relative;overflow:hidden;}
+  .stat-card::before{content:'';position:absolute;top:-30px;right:-30px;width:80px;height:80px;border-radius:50%;background:radial-gradient(circle, rgba(0,230,168,.25), transparent 70%);}
+  .stat-card .stat-label{font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--steel);font-weight:700;margin-bottom:8px;}
+  .stat-card .stat-value{font-family:'Space Grotesk',sans-serif;font-size:25px;font-weight:700;}
+
+  .section-head{display:flex;align-items:center;justify-content:space-between;margin:28px 0 12px;}
+  .section-head h3{font-size:13.5px;margin:0;text-transform:uppercase;letter-spacing:.05em;color:var(--steel);}
+
+  .gtable{width:100%;border-collapse:collapse;font-size:12.5px;}
+  .gtable th{text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--steel);padding:10px 14px;background:rgba(255,255,255,.02);border-bottom:1px solid var(--line);}
+  .gtable td{padding:10px 14px;border-bottom:1px solid var(--line);font-family:'IBM Plex Mono',monospace;}
+  .gtable tr:last-child td{border-bottom:none;}
+  .gtable tr:hover td{background:rgba(255,255,255,.02);}
+
+  /* ---------- help tab ---------- */
+  .help-step{display:flex;gap:14px;padding:16px 18px;border-bottom:1px solid var(--line);}
+  .help-step:last-child{border-bottom:none;}
+  .help-step-num{flex-shrink:0;width:28px;height:28px;border-radius:8px;background:var(--mint-soft);color:var(--mint);
+    font-family:'IBM Plex Mono',monospace;font-weight:700;font-size:13px;display:flex;align-items:center;justify-content:center;}
+  .help-step h4{margin:0 0 4px;font-size:14px;font-weight:700;}
+  .help-step p{margin:0;font-size:13px;color:var(--steel);line-height:1.55;}
+  .faq-item{border-bottom:1px solid var(--line);}
+  .faq-item:last-child{border-bottom:none;}
+  .faq-q{width:100%;text-align:left;background:transparent;border:none;color:var(--text);cursor:pointer;
+    padding:15px 18px;font-size:13.5px;font-weight:600;display:flex;align-items:center;justify-content:space-between;gap:12px;}
+  .faq-q:hover{background:rgba(255,255,255,.03);}
+  .faq-q .chev{flex-shrink:0;width:16px;height:16px;stroke:var(--steel);fill:none;stroke-width:2;transition:transform .15s;}
+  .faq-item.open .faq-q .chev{transform:rotate(180deg);color:var(--mint);}
+  .faq-a{max-height:0;overflow:hidden;transition:max-height .2s ease;}
+  .faq-item.open .faq-a{max-height:400px;}
+  .faq-a p{margin:0;padding:0 18px 16px;font-size:13px;color:var(--steel);line-height:1.6;}
+  .contact-card{display:flex;align-items:center;gap:14px;padding:16px 18px;border-bottom:1px solid var(--line);}
+  .contact-card:last-child{border-bottom:none;}
+  .contact-ic{flex-shrink:0;width:36px;height:36px;border-radius:9px;background:var(--violet-soft);color:var(--violet);
+    display:flex;align-items:center;justify-content:center;}
+  .contact-ic svg{width:17px;height:17px;}
+  .contact-card .cc-label{font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--steel);font-weight:700;margin-bottom:2px;}
+  .contact-card .cc-value{font-size:13.5px;font-weight:600;}
+  .contact-card .cc-value a{color:var(--mint);text-decoration:none;}
+  .contact-card .cc-value a:hover{text-decoration:underline;}
+
+  /* cart / sale */
+  .cart-item{display:flex;align-items:center;gap:10px;padding:11px 0;border-bottom:1px solid var(--line);}
+  .cart-item:last-child{border-bottom:none;}
+  .cart-item .ci-name{flex:1;font-weight:600;font-size:13.5px;}
+  .cart-item .ci-sub{font-size:11px;color:var(--steel);font-family:'IBM Plex Mono',monospace;}
+  .qty-ctrl{display:flex;align-items:center;gap:7px;}
+  .qty-ctrl button{width:25px;height:25px;border-radius:7px;border:1px solid var(--line-hi);background:rgba(255,255,255,.04);color:var(--text);cursor:pointer;font-weight:700;}
+  .qty-ctrl span{min-width:20px;text-align:center;font-family:'IBM Plex Mono',monospace;font-weight:600;}
+  .cart-total{display:flex;justify-content:space-between;align-items:baseline;padding:16px 0 4px;font-weight:700;font-size:18px;font-family:'Space Grotesk',sans-serif;}
+  .cart-total span:last-child{color:var(--mint);}
+  .cart-empty{color:var(--steel);font-size:13px;padding:22px 0;text-align:center;}
+</style>
+</head>
+<body>
+<div id="app"></div>
+
+<script>
+/* ============ CONFIG ============
+   Backend confirmed schema (from /docs):
+   ProductCreate: sku*, barcode, name*, category, cost_price, sell_price, reorder_level, lead_time_days, track_expiry
+   Stock lives in batches (/inventory/*), not on the product itself.
+   Exact field names for Sale/Batch/Adjust/WriteOff were partly guessed from schema
+   names (SaleCreate, BatchReceive, StockAdjust, WastageWriteOff) since full field
+   lists weren't visible. If any action errors, copy the exact error text shown on
+   screen and send it back — the field names are a one-line fix.
+================================== */
+const API_BASE = "https://loss-control-api-db9i.onrender.com";
+
+const state = {
+  token: null, email: null,
+  view: "products", stockSubView: "products", // products | batches
+  authTab: "login",
+  products: [], loadingProducts: false, search: "",
+  editingProduct: null,
+  receivingProduct: null, receiveError: "",
+  adjustingProduct: null, adjustError: "",
+  writingOffBatch: null, writeOffError: "",
+  batches: [], loadingBatches: false, batchError: "",
+  authError: "", authOk: "", formError: "",
+  scanResult: null, cameraActive: false,
+  cart: [], saleError: "", saleOk: "",
+  dashLoading: false, dashError: "",
+  dashSummary: null, dashBriefing: null,
+  stockoutRisks: null, expiryRisks: null, deadStock: null,
+  purchaseRecs: null, highRiskAlerts: null, billingStatus: null, movements: null,
+  alertSending: false, alertMsg: "",
+  openFaqs: new Set([0]),
+  language: (localStorage.getItem('lc_lang') || 'en'),
+  profile: null, profileLoading: false, profileError: "",
+  waNumberInput: "", waSaving: false, waMsg: "",
+  digestSending: false, digestMsg: "",
+  weeklySending: false, weeklyMsg: "", weeklyDownloading: false,
+  chatMessages: [], chatInput: "", chatSending: false, chatError: "",
+};
+
+let html5QrCode = null;
+
+function el(html){ const t=document.createElement('template'); t.innerHTML=html.trim(); return t.content.firstChild; }
+function escapeHtml(s){ return String(s==null?'':s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+/* ============ LANGUAGE (EN / HI) ============ */
+const TRANSLATIONS = {
+  en: {
+    nav_stock: 'Stock', nav_sale: 'Sale', nav_scan: 'Scan', nav_dash: 'Dash', nav_help: 'Help', nav_exit: 'Exit',
+    help_title: 'Help & Support', help_eyebrow: 'Support',
+    help_howto: 'How to use Stockroom', help_faqs: 'Frequently asked questions', help_contact: 'Contact support',
+    help_ask_ai: 'Ask AI', help_ask_ai_sub: 'Ask about your store\u2019s numbers, or how to use any screen.',
+    help_ask_placeholder: 'e.g. "Aaj ka loss kitna hai?" or "How do I add a product?"',
+    help_send: 'Send', help_thinking: 'Thinking…',
+    help_settings: 'WhatsApp & reports',
+    help_wa_label: 'WhatsApp number', help_wa_placeholder: '+91XXXXXXXXXX',
+    help_save: 'Save', help_send_wa_now: 'Send WhatsApp update now',
+    help_send_digest: 'Send daily digest (email + WhatsApp)',
+    help_download_weekly: 'Download weekly PDF report', help_email_weekly: 'Email me the weekly report',
+    help_store: 'Store',
+  },
+  hi: {
+    nav_stock: 'स्टॉक', nav_sale: 'सेल', nav_scan: 'स्कैन', nav_dash: 'डैश', nav_help: 'मदद', nav_exit: 'बाहर',
+    help_title: 'मदद और सपोर्ट', help_eyebrow: 'सपोर्ट',
+    help_howto: 'Stockroom कैसे इस्तेमाल करें', help_faqs: 'अक्सर पूछे जाने वाले सवाल', help_contact: 'सपोर्ट से संपर्क करें',
+    help_ask_ai: 'AI से पूछें', help_ask_ai_sub: 'अपने स्टोर के नंबरों के बारे में पूछें, या किसी भी स्क्रीन को इस्तेमाल करने का तरीका जानें।',
+    help_ask_placeholder: 'जैसे "आज का loss कितना है?" या "product कैसे add karu?"',
+    help_send: 'भेजें', help_thinking: 'सोच रहे हैं…',
+    help_settings: 'WhatsApp और रिपोर्ट्स',
+    help_wa_label: 'WhatsApp नंबर', help_wa_placeholder: '+91XXXXXXXXXX',
+    help_save: 'सेव करें', help_send_wa_now: 'अभी WhatsApp अपडेट भेजें',
+    help_send_digest: 'डेली डाइजेस्ट भेजें (ईमेल + WhatsApp)',
+    help_download_weekly: 'साप्ताहिक PDF रिपोर्ट डाउनलोड करें', help_email_weekly: 'मुझे साप्ताहिक रिपोर्ट ईमेल करें',
+    help_store: 'स्टोर',
+  },
+};
+function t(key){ return (TRANSLATIONS[state.language] && TRANSLATIONS[state.language][key]) || TRANSLATIONS.en[key] || key; }
+function setLanguage(lang){ state.language = lang; localStorage.setItem('lc_lang', lang); render(); }
+
+function icon(name){
+  const icons = {
+    scan:`<svg viewBox="0 0 24 24"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2M7 12h10"/></svg>`,
+    box:`<svg viewBox="0 0 24 24"><path d="M21 8l-9-5-9 5 9 5 9-5zM3 8v8l9 5 9-5V8M12 13v8"/></svg>`,
+    logout:`<svg viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg>`,
+    search:`<svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>`,
+    edit:`<svg viewBox="0 0 24 24"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>`,
+    trash:`<svg viewBox="0 0 24 24"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6h14z"/></svg>`,
+    plus:`<svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>`,
+    empty:`<svg viewBox="0 0 24 24"><path d="M21 8l-9-5-9 5 9 5 9-5zM3 8v8l9 5 9-5V8"/></svg>`,
+    cart:`<svg viewBox="0 0 24 24"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.7 13.4a2 2 0 0 0 2 1.6h9.7a2 2 0 0 0 2-1.6L23 6H6"/></svg>`,
+    dash:`<svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>`,
+    inbox:`<svg viewBox="0 0 24 24"><path d="M22 12h-6l-2 3h-4l-2-3H2M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg>`,
+    sliders:`<svg viewBox="0 0 24 24"><path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/></svg>`,
+    flame:`<svg viewBox="0 0 24 24"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 17a2.5 2.5 0 0 0 2.5-2.5c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7.5 7.5 0 1 1-15 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg>`,
+    bell:`<svg viewBox="0 0 24 24"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>`,
+    receipt:`<svg viewBox="0 0 24 24"><path d="M4 2h16v20l-3-2-3 2-3-2-3 2-3-2-1 2z"/><path d="M8 7h8M8 11h8M8 15h5"/></svg>`,
+    activity:`<svg viewBox="0 0 24 24"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>`,
+    help:`<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 2-3 4"/><path d="M12 17h.01"/></svg>`,
+    chevdown:`<svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg>`,
+    mail:`<svg viewBox="0 0 24 24"><path d="M4 4h16v16H4z" style="display:none"/><path d="M22 6l-10 7L2 6"/><rect x="2" y="4" width="20" height="16" rx="2"/></svg>`,
+    phone:`<svg viewBox="0 0 24 24"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>`,
+    book:`<svg viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>`,
+  };
+  return icons[name]||'';
+}
+
+/* ============ API HELPER ============ */
+async function api(path, {method='GET', body=null, form=false, auth=true} = {}){
+  const headers = {};
+  if (auth && state.token) headers['Authorization'] = 'Bearer ' + state.token;
+  let payload = null;
+  if (body){
+    if (form){ headers['Content-Type'] = 'application/x-www-form-urlencoded'; payload = new URLSearchParams(body).toString(); }
+    else { headers['Content-Type'] = 'application/json'; payload = JSON.stringify(body); }
+  }
+  const res = await fetch(API_BASE + path, {method, headers, body: payload});
+  let data = null;
+  try { data = await res.json(); } catch(e) {}
+  if (!res.ok){
+    let msg = (data && (data.detail || data.message)) || ('Request failed (' + res.status + ')');
+    if (Array.isArray(msg)) msg = msg.map(m=>m.msg||JSON.stringify(m)).join('; ');
+    throw new Error(typeof msg === 'string' ? msg : JSON.stringify(msg));
+  }
+  return data;
+}
+
+/* ============ AUTH ============ */
+async function doLogin(email, password){
+  state.authError=''; state.authOk='';
+  try{
+    const data = await api('/auth/login', {method:'POST', auth:false, form:true, body:{username:email, password}});
+    state.token = data.access_token || data.token;
+    state.email = email;
+    if (!state.token) throw new Error('Login succeeded but no token was returned.');
+    state.view = 'products';
+    loadProducts();
+  } catch(e){ state.authError = e.message; }
+  render();
+}
+async function doSignup(store_name, email, password){
+  state.authError=''; state.authOk='';
+  try{
+    await api('/auth/signup', {method:'POST', auth:false, body:{store_name, email, password}});
+    state.authOk = 'Account created — you can log in now.'; state.authTab='login';
+  } catch(e){ state.authError = e.message; }
+  render();
+}
+function doLogout(){
+  state.token=null; state.email=null; state.view='products'; state.products=[]; state.cart=[];
+  stopCamera(); render();
+}
+
+/* ============ PRODUCTS ============ */
+async function loadProducts(){
+  state.loadingProducts = true; render();
+  try{
+    const data = await api('/products');
+    state.products = Array.isArray(data) ? data : (data.items || []);
+  } catch(e){ console.error(e); }
+  state.loadingProducts = false; render();
+}
+
+function productPayload(v){
+  const payload = {
+    sku: v.sku, name: v.name,
+    barcode: v.barcode || null,
+    category: v.category || null,
+    cost_price: v.cost_price === '' ? null : Number(v.cost_price),
+    sell_price: v.sell_price === '' ? null : Number(v.sell_price),
+    reorder_level: v.reorder_level === '' ? null : parseInt(v.reorder_level),
+    lead_time_days: v.lead_time_days === '' ? null : parseInt(v.lead_time_days),
+    track_expiry: !!v.track_expiry,
+  };
+  Object.keys(payload).forEach(k => { if (payload[k] === null) delete payload[k]; });
+  return payload;
+}
+
+async function saveProduct(fields, isEdit, id){
+  state.formError='';
+  try{
+    if (isEdit) await api('/products/' + id, {method:'PATCH', body:fields});
+    else await api('/products', {method:'POST', body:fields});
+    state.editingProduct = null;
+    await loadProducts();
+  } catch(e){ state.formError = e.message; render(); }
+}
+async function deleteProduct(id){
+  if (!confirm('Remove this product from the stockroom?')) return;
+  try{ await api('/products/' + id, {method:'DELETE'}); await loadProducts(); }
+  catch(e){ alert('Could not delete: ' + e.message); }
+}
+
+/* ============ INVENTORY: batches / receive / adjust / write-off ============ */
+async function receiveStock(productId, fields){
+  state.receiveError = '';
+  try{
+    await api('/inventory/receive', {method:'POST', body: Object.assign({product_id: productId}, fields)});
+    state.receivingProduct = null;
+    await loadProducts();
+    if (state.stockSubView === 'batches') await loadBatches();
+  } catch(e){ state.receiveError = e.message; render(); }
+}
+
+async function loadBatches(){
+  state.loadingBatches = true; state.batchError=''; render();
+  try{
+    const data = await api('/inventory/batches');
+    state.batches = Array.isArray(data) ? data : (data.items || []);
+  } catch(e){ state.batchError = e.message; }
+  state.loadingBatches = false; render();
+}
+
+async function adjustStock(productId, fields){
+  state.adjustError = '';
+  try{
+    await api('/inventory/adjust', {method:'POST', body: Object.assign({product_id: productId}, fields)});
+    state.adjustingProduct = null;
+    await loadProducts();
+  } catch(e){ state.adjustError = e.message; render(); }
+}
+
+async function writeOffBatch(batchId, fields){
+  state.writeOffError = '';
+  try{
+    await api('/inventory/write-off', {method:'POST', body: Object.assign({batch_id: batchId}, fields)});
+    state.writingOffBatch = null;
+    await loadBatches();
+    await loadProducts();
+  } catch(e){ state.writeOffError = e.message; render(); }
+}
+
+function stockStatus(p){
+  const qty = p.quantity_on_hand ?? p.qty_on_hand ?? p.quantity ?? p.stock ?? p.on_hand ?? null;
+  if (qty == null) return 'na';
+  const q = Number(qty);
+  const reorder = p.reorder_level ?? 5;
+  if (q <= 0) return 'out';
+  if (q <= reorder) return 'low';
+  return 'ok';
+}
+function stockLabel(status){ return {ok:'In stock', low:'Low', out:'Out', na:'—'}[status]; }
+function stockQty(p){
+  const qty = p.quantity_on_hand ?? p.qty_on_hand ?? p.quantity ?? p.stock ?? p.on_hand ?? null;
+  return qty == null ? '—' : qty;
+}
+
+/* ============ SCAN ============ */
+async function lookupBarcode(code, onFound){
+  code = (code||'').trim();
+  if (!code) return;
+  state.scanResult = {status:'loading', code}; render();
+  try{
+    const product = await api('/products/barcode/' + encodeURIComponent(code));
+    state.scanResult = {status:'found', code, product};
+    if (onFound) onFound(product);
+  } catch(e){
+    state.scanResult = {status:'notfound', code, error:e.message};
+  }
+  render();
+}
+
+function startCamera(readerId, onCode){
+  if (typeof Html5Qrcode === 'undefined'){ alert('Camera scanner library did not load. Check your connection and reload.'); return; }
+  state.cameraActive = true; render();
+  html5QrCode = new Html5Qrcode(readerId);
+  html5QrCode.start(
+    { facingMode: "environment" },
+    { fps: 10, qrbox: { width: 230, height: 130 } },
+    (decodedText) => { onCode(decodedText); },
+    () => {}
+  ).catch(err => {
+    state.cameraActive = false; render();
+    alert('Could not start camera: ' + err + '\n\nUse the USB scanner / manual field instead.');
+  });
+}
+function stopCamera(){
+  if (html5QrCode && state.cameraActive){ html5QrCode.stop().then(()=>html5QrCode.clear()).catch(()=>{}); }
+  state.cameraActive = false;
+}
+
+/* ============ SALE / CART ============ */
+function addToCart(product){
+  const existing = state.cart.find(c => c.product.id === product.id);
+  if (existing) existing.qty += 1;
+  else state.cart.push({product, qty:1});
+  state.saleOk=''; state.saleError='';
+  render();
+}
+function changeCartQty(id, delta){
+  const item = state.cart.find(c => c.product.id === id);
+  if (!item) return;
+  item.qty += delta;
+  if (item.qty <= 0) state.cart = state.cart.filter(c => c.product.id !== id);
+  render();
+}
+function cartTotal(){
+  return state.cart.reduce((sum, c) => sum + (Number(c.product.sell_price||0) * c.qty), 0);
+}
+async function completeSale(){
+  if (state.cart.length === 0) return;
+  state.saleError=''; state.saleOk='';
+  try{
+    const items = state.cart.map(c => ({ product_id: c.product.id, quantity: c.qty }));
+    await api('/sales', {method:'POST', body:{items}});
+    state.saleOk = 'Sale recorded — ' + state.cart.length + ' item(s), ₹' + cartTotal().toFixed(2);
+    state.cart = [];
+    await loadProducts();
+  } catch(e){ state.saleError = e.message; }
+  render();
+}
+
+/* ============ DASHBOARD ============ */
+async function loadDashboard(){
+  state.dashLoading = true; state.dashError=''; render();
+  const results = await Promise.allSettled([
+    api('/dashboard/summary'),
+    api('/dashboard/briefing'),
+    api('/analytics/stockout-risks'),
+    api('/analytics/expiry-risks'),
+    api('/analytics/dead-stock'),
+    api('/analytics/purchase-recommendations'),
+    api('/notifications/high-risk'),
+    api('/billing/status'),
+    api('/inventory/movements'),
+  ]);
+  const [summary, briefing, stockout, expiry, dead, purchase, highrisk, billing, movements] = results;
+  state.dashSummary = summary.status==='fulfilled' ? summary.value : null;
+  state.dashBriefing = briefing.status==='fulfilled' ? briefing.value : null;
+  state.stockoutRisks = stockout.status==='fulfilled' ? stockout.value : null;
+  state.expiryRisks = expiry.status==='fulfilled' ? expiry.value : null;
+  state.deadStock = dead.status==='fulfilled' ? dead.value : null;
+  state.purchaseRecs = purchase.status==='fulfilled' ? purchase.value : null;
+  state.highRiskAlerts = highrisk.status==='fulfilled' ? highrisk.value : null;
+  state.billingStatus = billing.status==='fulfilled' ? billing.value : null;
+  state.movements = movements.status==='fulfilled' ? movements.value : null;
+  const failures = results.filter(r=>r.status==='rejected');
+  if (failures.length === results.length) state.dashError = 'Could not load dashboard data: ' + failures[0].reason.message;
+  state.dashLoading = false; render();
+}
+
+async function sendDailyAlert(){
+  state.alertSending = true; state.alertMsg=''; render();
+  try{
+    await api('/notifications/send-daily-alert', {method:'POST'});
+    state.alertMsg = 'Daily alert sent.';
+  } catch(e){ state.alertMsg = 'Failed: ' + e.message; }
+  state.alertSending = false; render();
+}
+
+function renderStatCards(container, obj){
+  if (!obj || typeof obj !== 'object') return;
+  const grid = el(`<div class="stat-grid"></div>`);
+  Object.entries(obj).forEach(([k,v])=>{
+    if (v !== null && typeof v === 'object') return;
+    const label = k.replace(/_/g,' ');
+    let val = v;
+    if (typeof v === 'number' && /price|revenue|total_sales|amount|value/.test(k)) val = '₹' + v;
+    grid.appendChild(el(`<div class="stat-card"><div class="stat-label">${escapeHtml(label)}</div><div class="stat-value">${escapeHtml(String(val))}</div></div>`));
+  });
+  if (grid.children.length) container.appendChild(grid);
+}
+
+function renderGenericTable(container, title, data, actionsBuilder){
+  const wrap = el(`<div></div>`);
+  wrap.appendChild(el(`<div class="section-head"><h3>${escapeHtml(title)}</h3></div>`));
+  let rows = Array.isArray(data) ? data : (data && Array.isArray(data.items) ? data.items : null);
+  if (!rows || rows.length === 0){
+    wrap.appendChild(el(`<div class="card"><div class="empty-state">${icon('inbox')}<div>Nothing here right now.</div></div></div>`));
+    container.appendChild(wrap);
+    return null;
+  }
+  const keys = Object.keys(rows[0]).filter(k => typeof rows[0][k] !== 'object').slice(0,6);
+  const table = el(`<table class="gtable"></table>`);
+  const headCells = keys.map(k=>`<th>${escapeHtml(k.replace(/_/g,' '))}</th>`).join('') + (actionsBuilder ? '<th></th>' : '');
+  table.appendChild(el(`<thead><tr>${headCells}</tr></thead>`));
+  const tbody = el(`<tbody></tbody>`);
+  rows.forEach(r=>{
+    const tr = el(`<tr>${keys.map(k=>`<td>${escapeHtml(r[k]==null?'—':r[k])}</td>`).join('')}</tr>`);
+    if (actionsBuilder){
+      const td = el(`<td></td>`);
+      td.appendChild(actionsBuilder(r));
+      tr.appendChild(td);
+    }
+    tbody.appendChild(tr);
+  });
+  table.appendChild(tbody);
+  const card = el(`<div class="card"></div>`);
+  card.appendChild(table);
+  wrap.appendChild(card);
+  container.appendChild(wrap);
+  return rows;
+}
+
+/* ============ RENDER: LOGIN ============ */
+function renderLogin(){
+  const app = document.getElementById('app');
+  app.innerHTML = ''; app.style.display = 'block';
+  const wrap = el(`
+    <div class="login-wrap">
+      <div class="ticket">
+        <div class="ticket-head">
+          <div class="stripe"></div>
+          <h1><span class="grad-text">Stockroom</span> AI</h1>
+          <p>LOSS PREVENTION · REAL-TIME INTELLIGENCE</p>
+        </div>
+        <div class="ticket-body">
+          <div class="tabs">
+            <div class="tab" data-tab="login">Log in</div>
+            <div class="tab" data-tab="signup">Sign up</div>
+          </div>
+          <div id="auth-msgs"></div>
+          <div id="auth-fields"></div>
+          <button class="btn amber block" id="auth-submit" style="padding:12px;">Continue</button>
+        </div>
+      </div>
+    </div>`);
+  app.appendChild(wrap);
+  wrap.querySelectorAll('.tab').forEach(t=>{
+    if (t.dataset.tab === state.authTab) t.classList.add('active');
+    t.addEventListener('click', ()=>{ state.authTab = t.dataset.tab; state.authError=''; state.authOk=''; render(); });
+  });
+  const msgs = wrap.querySelector('#auth-msgs');
+  if (state.authError) msgs.appendChild(el(`<div class="err-msg">${escapeHtml(state.authError)}</div>`));
+  if (state.authOk) msgs.appendChild(el(`<div class="ok-msg">${escapeHtml(state.authOk)}</div>`));
+  const fields = wrap.querySelector('#auth-fields');
+  if (state.authTab === 'login'){
+    fields.appendChild(el(`<div>
+        <div class="field"><label>Email</label><input type="email" id="f-email" placeholder="you@store.com"></div>
+        <div class="field"><label>Password</label><input type="password" id="f-password" placeholder="••••••••"></div>
+      </div>`));
+  } else {
+    fields.appendChild(el(`<div>
+        <div class="field"><label>Store name</label><input type="text" id="f-store" placeholder="Riteshnade Traders"></div>
+        <div class="field"><label>Email</label><input type="email" id="f-email" placeholder="you@store.com"></div>
+        <div class="field"><label>Password</label><input type="password" id="f-password" placeholder="Choose a password"></div>
+      </div>`));
+  }
+  wrap.querySelector('#auth-submit').addEventListener('click', ()=>{
+    const email = wrap.querySelector('#f-email').value.trim();
+    const password = wrap.querySelector('#f-password').value;
+    if (state.authTab === 'login'){
+      if (!email || !password){ state.authError='Enter email and password.'; render(); return; }
+      doLogin(email, password);
+    } else {
+      const store = wrap.querySelector('#f-store').value.trim();
+      if (!store || !email || !password){ state.authError='Fill in all fields.'; render(); return; }
+      doSignup(store, email, password);
+    }
+  });
+}
+
+/* ============ RENDER: SHELL ============ */
+function renderShell(bodyEl){
+  const app = document.getElementById('app');
+  app.innerHTML = ''; app.style.display = 'flex';
+  const sidebar = el(`
+    <div class="sidebar">
+      <div class="logo"></div>
+      <button class="nav-btn" data-view="products">${icon('box')}${t('nav_stock')}</button>
+      <button class="nav-btn" data-view="sale">${icon('cart')}${t('nav_sale')}</button>
+      <button class="nav-btn" data-view="scan">${icon('scan')}${t('nav_scan')}</button>
+      <button class="nav-btn" data-view="dashboard">${icon('dash')}${t('nav_dash')}</button>
+      <button class="nav-btn" data-view="help">${icon('help')}${t('nav_help')}</button>
+      <div class="nav-spacer"></div>
+      <button class="nav-btn nav-logout" id="logout-btn">${icon('logout')}${t('nav_exit')}</button>
+    </div>`);
+  sidebar.querySelectorAll('.nav-btn[data-view]').forEach(b=>{
+    if (b.dataset.view === state.view) b.classList.add('active');
+    b.addEventListener('click', ()=>{
+      state.view = b.dataset.view;
+      if (state.view !== 'scan') stopCamera();
+      if (state.view === 'dashboard' && !state.dashSummary && !state.dashLoading) loadDashboard();
+      render();
+    });
+  });
+  sidebar.querySelector('#logout-btn').addEventListener('click', doLogout);
+  app.appendChild(sidebar);
+  app.appendChild(bodyEl);
+}
+
+/* ============ RENDER: PRODUCTS + BATCHES (Stock tab) ============ */
+function renderProducts(){
+  const main = el(`<div class="main"></div>`);
+  main.appendChild(el(`
+    <div class="topline">
+      <div><div class="eyebrow">Stockroom / ${state.products.length} items</div><h1 class="pagehead grad-text">Products</h1></div>
+      <button class="btn amber" id="add-product">${icon('plus')} Add product</button>
+    </div>`));
+
+  const subtabs = el(`
+    <div class="tabs" style="max-width:280px;margin-bottom:18px;">
+      <div class="tab" data-sub="products">Products</div>
+      <div class="tab" data-sub="batches">Batches</div>
+    </div>`);
+  main.appendChild(subtabs);
+
+  if (state.stockSubView === 'batches'){
+    renderBatchesInto(main);
+  } else {
+    renderProductsListInto(main);
+  }
+
+  renderShell(main);
+
+  subtabs.querySelectorAll('.tab').forEach(t=>{
+    if (t.dataset.sub === state.stockSubView) t.classList.add('active');
+    t.addEventListener('click', ()=>{
+      state.stockSubView = t.dataset.sub;
+      if (state.stockSubView === 'batches' && state.batches.length === 0) loadBatches();
+      render();
+    });
+  });
+
+  if (state.stockSubView === 'products'){
+    main.querySelector('#product-search').addEventListener('input', (e)=>{ state.search = e.target.value; render(); });
+    main.querySelector('#add-product').addEventListener('click', ()=>{ state.editingProduct = {}; state.formError=''; render(); });
+    main.querySelectorAll('[data-edit]').forEach(b=>b.addEventListener('click', ()=>{
+      const p = state.products.find(x=>String(x.id)===b.dataset.edit);
+      state.editingProduct = Object.assign({}, p); state.formError=''; render();
+    }));
+    main.querySelectorAll('[data-del]').forEach(b=>b.addEventListener('click', ()=>deleteProduct(b.dataset.del)));
+    main.querySelectorAll('[data-receive]').forEach(b=>b.addEventListener('click', ()=>{
+      const p = state.products.find(x=>String(x.id)===b.dataset.receive);
+      state.receivingProduct = p; state.receiveError=''; render();
+    }));
+    main.querySelectorAll('[data-adjust]').forEach(b=>b.addEventListener('click', ()=>{
+      const p = state.products.find(x=>String(x.id)===b.dataset.adjust);
+      state.adjustingProduct = p; state.adjustError=''; render();
+    }));
+  } else {
+    const wob = main.querySelector('#writeoff-btns');
+    if (wob) {}
+    main.querySelectorAll('[data-writeoff]').forEach(b=>b.addEventListener('click', ()=>{
+      const batch = state.batches.find(x=>String(x.id)===b.dataset.writeoff);
+      state.writingOffBatch = batch; state.writeOffError=''; render();
+    }));
+  }
+
+  if (state.editingProduct) renderProductModal();
+  if (state.receivingProduct) renderReceiveModal();
+  if (state.adjustingProduct) renderAdjustModal();
+  if (state.writingOffBatch) renderWriteOffModal();
+  document.getElementById('add-product-btn-noop');
+}
+
+function renderProductsListInto(main){
+  main.appendChild(el(`
+    <div class="toolbar">
+      <div class="search-box">${icon('search')}<input type="text" id="product-search" placeholder="Search by name, SKU or barcode" value="${escapeHtml(state.search)}"></div>
+    </div>`));
+
+  const filtered = state.products.filter(p=>{
+    if (!state.search) return true;
+    const q = state.search.toLowerCase();
+    return String(p.name||'').toLowerCase().includes(q) || String(p.sku||'').toLowerCase().includes(q) || String(p.barcode||'').toLowerCase().includes(q);
+  });
+
+  const card = el(`<div class="card"></div>`);
+  card.appendChild(el(`<div class="row head"><span></span><span>Product</span><span>SKU / Barcode</span><span>Sell price</span><span>Stock</span><span>Status</span><span></span></div>`));
+
+  if (state.loadingProducts){
+    card.appendChild(el(`<div class="empty-state"><div>Loading stock…</div></div>`));
+  } else if (filtered.length === 0){
+    card.appendChild(el(`<div class="empty-state">${icon('empty')}<div>${state.products.length===0 ? 'No products yet. Add your first one to get started.' : 'Nothing matches that search.'}</div></div>`));
+  } else {
+    filtered.forEach(p=>{
+      const status = stockStatus(p);
+      const price = p.sell_price != null ? ('₹' + p.sell_price) : '—';
+      const row = el(`
+        <div class="row">
+          <div class="stock-flag flag-${status}"></div>
+          <div class="name-cell">${escapeHtml(p.name || '(unnamed)')}</div>
+          <div class="sub">${escapeHtml(p.sku||'—')} · ${escapeHtml(p.barcode||'—')}</div>
+          <div class="mono">${escapeHtml(String(price))}</div>
+          <div class="mono">${escapeHtml(String(stockQty(p)))}</div>
+          <div><span class="badge ${status}">${escapeHtml(stockLabel(status))}</span></div>
+          <div class="row-actions">
+            <button class="icon-btn" data-receive="${p.id}" title="Receive stock">${icon('box')}</button>
+            <button class="icon-btn" data-adjust="${p.id}" title="Adjust stock">${icon('sliders')}</button>
+            <button class="icon-btn" data-edit="${p.id}" title="Edit">${icon('edit')}</button>
+            <button class="icon-btn" data-del="${p.id}" title="Delete">${icon('trash')}</button>
+          </div>
+        </div>`);
+      card.appendChild(row);
+    });
+  }
+  main.appendChild(card);
+}
+
+function renderBatchesInto(main){
+  main.appendChild(el(`<div class="info-msg">Batches show what stock arrived and when. Write off a batch here if it's damaged or expired.</div>`));
+  if (state.loadingBatches){
+    main.appendChild(el(`<div class="card"><div class="empty-state">Loading batches…</div></div>`));
+    return;
+  }
+  if (state.batchError){
+    main.appendChild(el(`<div class="err-msg">${escapeHtml(state.batchError)}</div>`));
+    return;
+  }
+  if (!state.batches || state.batches.length === 0){
+    main.appendChild(el(`<div class="card"><div class="empty-state">${icon('inbox')}<div>No batches received yet. Go to Products and use "Receive stock".</div></div></div>`));
+    return;
+  }
+  const keys = Object.keys(state.batches[0]).filter(k => typeof state.batches[0][k] !== 'object').slice(0,6);
+  const card = el(`<div class="card"></div>`);
+  const table = el(`<table class="gtable"></table>`);
+  table.appendChild(el(`<thead><tr>${keys.map(k=>`<th>${escapeHtml(k.replace(/_/g,' '))}</th>`).join('')}<th></th></tr></thead>`));
+  const tbody = el(`<tbody></tbody>`);
+  state.batches.forEach(b=>{
+    const tr = el(`<tr>${keys.map(k=>`<td>${escapeHtml(b[k]==null?'—':b[k])}</td>`).join('')}</tr>`);
+    const td = el(`<td></td>`);
+    td.appendChild(el(`<button class="icon-btn" data-writeoff="${b.id}" title="Write off">${icon('flame')}</button>`));
+    tr.appendChild(td);
+    tbody.appendChild(tr);
+  });
+  table.appendChild(tbody);
+  card.appendChild(table);
+  main.appendChild(card);
+}
+
+function renderProductModal(){
+  const isEdit = !!state.editingProduct.id;
+  const p = state.editingProduct;
+  const overlay = el(`
+    <div class="overlay">
+      <div class="modal">
+        <h2>${isEdit ? 'Edit product' : 'Add product'}</h2>
+        <div id="modal-err"></div>
+        <div class="field"><label>Name</label><input id="m-name" value="${escapeHtml(p.name||'')}" placeholder="e.g. Parle-G 100g"></div>
+        <div class="field-row">
+          <div class="field"><label>SKU</label><input id="m-sku" value="${escapeHtml(p.sku||'')}" placeholder="PARLE-G-100G"></div>
+          <div class="field"><label>Barcode</label><input id="m-barcode" value="${escapeHtml(p.barcode||'')}" placeholder="8901234567890"></div>
+        </div>
+        <div class="field"><label>Category</label><input id="m-category" value="${escapeHtml(p.category||'')}" placeholder="Snacks"></div>
+        <div class="field-row">
+          <div class="field"><label>Cost price (₹)</label><input id="m-cost" type="number" step="0.01" value="${p.cost_price ?? ''}" placeholder="8.00"></div>
+          <div class="field"><label>Sell price (₹)</label><input id="m-sell" type="number" step="0.01" value="${p.sell_price ?? ''}" placeholder="10.00"></div>
+        </div>
+        <div class="field-row">
+          <div class="field"><label>Reorder level</label><input id="m-reorder" type="number" value="${p.reorder_level ?? ''}" placeholder="5"></div>
+          <div class="field"><label>Lead time (days)</label><input id="m-lead" type="number" value="${p.lead_time_days ?? ''}" placeholder="3"></div>
+        </div>
+        <div class="check-row"><input type="checkbox" id="m-expiry" ${p.track_expiry ? 'checked' : ''}><label for="m-expiry">Track expiry dates for this product</label></div>
+        <div class="modal-actions">
+          <button class="btn ghost" id="m-cancel">Cancel</button>
+          <button class="btn amber" id="m-save">${isEdit ? 'Save changes' : 'Add product'}</button>
+        </div>
+      </div>
+    </div>`);
+  document.getElementById('app').appendChild(overlay);
+  if (state.formError) overlay.querySelector('#modal-err').appendChild(el(`<div class="err-msg">${escapeHtml(state.formError)}</div>`));
+  overlay.querySelector('#m-cancel').addEventListener('click', ()=>{ state.editingProduct=null; render(); });
+  overlay.addEventListener('click', (e)=>{ if(e.target===overlay){ state.editingProduct=null; render(); }});
+  overlay.querySelector('#m-save').addEventListener('click', ()=>{
+    const v = {
+      name: overlay.querySelector('#m-name').value.trim(),
+      sku: overlay.querySelector('#m-sku').value.trim(),
+      barcode: overlay.querySelector('#m-barcode').value.trim(),
+      category: overlay.querySelector('#m-category').value.trim(),
+      cost_price: overlay.querySelector('#m-cost').value,
+      sell_price: overlay.querySelector('#m-sell').value,
+      reorder_level: overlay.querySelector('#m-reorder').value,
+      lead_time_days: overlay.querySelector('#m-lead').value,
+      track_expiry: overlay.querySelector('#m-expiry').checked,
+    };
+    if (!v.name || !v.sku){ state.formError='Name and SKU are required.'; render(); return; }
+    saveProduct(productPayload(v), isEdit, p.id);
+  });
+}
+
+function renderReceiveModal(){
+  const p = state.receivingProduct;
+  const overlay = el(`
+    <div class="overlay">
+      <div class="modal">
+        <h2>Receive stock — ${escapeHtml(p.name)}</h2>
+        <div class="info-msg">Calls <span class="mono">/inventory/receive</span>. If this errors, send me the exact message.</div>
+        <div id="receive-err"></div>
+        <div class="field"><label>Quantity received</label><input id="r-qty" type="number" placeholder="24"></div>
+        <div class="field-row">
+          <div class="field"><label>Cost price (₹, optional)</label><input id="r-cost" type="number" step="0.01" placeholder="${p.cost_price ?? ''}"></div>
+          <div class="field"><label>Expiry date (optional)</label><input id="r-expiry" type="date"></div>
+        </div>
+        <div class="modal-actions">
+          <button class="btn ghost" id="r-cancel">Cancel</button>
+          <button class="btn amber" id="r-save">Receive stock</button>
+        </div>
+      </div>
+    </div>`);
+  document.getElementById('app').appendChild(overlay);
+  if (state.receiveError) overlay.querySelector('#receive-err').appendChild(el(`<div class="err-msg">${escapeHtml(state.receiveError)}</div>`));
+  overlay.querySelector('#r-cancel').addEventListener('click', ()=>{ state.receivingProduct=null; render(); });
+  overlay.addEventListener('click', (e)=>{ if(e.target===overlay){ state.receivingProduct=null; render(); }});
+  overlay.querySelector('#r-save').addEventListener('click', ()=>{
+    const qty = parseInt(overlay.querySelector('#r-qty').value);
+    if (!qty || qty <= 0){ state.receiveError='Enter a quantity greater than 0.'; render(); return; }
+    const fields = { quantity: qty };
+    const cost = overlay.querySelector('#r-cost').value;
+    const exp = overlay.querySelector('#r-expiry').value;
+    if (cost) fields.cost_price = Number(cost);
+    if (exp) fields.expiry_date = exp;
+    receiveStock(p.id, fields);
+  });
+}
+
+function renderAdjustModal(){
+  const p = state.adjustingProduct;
+  const overlay = el(`
+    <div class="overlay">
+      <div class="modal">
+        <h2>Adjust stock — ${escapeHtml(p.name)}</h2>
+        <div class="info-msg">Use this to correct a miscount. Calls <span class="mono">/inventory/adjust</span>. Positive number adds stock, negative removes it.</div>
+        <div id="adjust-err"></div>
+        <div class="field"><label>Adjustment (+/-)</label><input id="a-qty" type="number" placeholder="e.g. -3 or 5"></div>
+        <div class="field"><label>Reason</label><input id="a-reason" placeholder="e.g. Recount, damaged in store"></div>
+        <div class="modal-actions">
+          <button class="btn ghost" id="a-cancel">Cancel</button>
+          <button class="btn amber" id="a-save">Apply adjustment</button>
+        </div>
+      </div>
+    </div>`);
+  document.getElementById('app').appendChild(overlay);
+  if (state.adjustError) overlay.querySelector('#adjust-err').appendChild(el(`<div class="err-msg">${escapeHtml(state.adjustError)}</div>`));
+  overlay.querySelector('#a-cancel').addEventListener('click', ()=>{ state.adjustingProduct=null; render(); });
+  overlay.addEventListener('click', (e)=>{ if(e.target===overlay){ state.adjustingProduct=null; render(); }});
+  overlay.querySelector('#a-save').addEventListener('click', ()=>{
+    const delta = parseInt(overlay.querySelector('#a-qty').value);
+    if (!delta){ state.adjustError='Enter a non-zero adjustment amount.'; render(); return; }
+    const reason = overlay.querySelector('#a-reason').value.trim();
+    adjustStock(p.id, { quantity_change: delta, reason: reason || undefined });
+  });
+}
+
+function renderWriteOffModal(){
+  const b = state.writingOffBatch;
+  const overlay = el(`
+    <div class="overlay">
+      <div class="modal">
+        <h2>Write off batch</h2>
+        <div class="info-msg">For damaged, expired, or lost stock. Calls <span class="mono">/inventory/write-off</span>.</div>
+        <div id="wo-err"></div>
+        <div class="field"><label>Quantity to write off</label><input id="wo-qty" type="number" placeholder="e.g. 3"></div>
+        <div class="field"><label>Reason</label><input id="wo-reason" placeholder="e.g. Expired, damaged in transit"></div>
+        <div class="modal-actions">
+          <button class="btn ghost" id="wo-cancel">Cancel</button>
+          <button class="btn red" id="wo-save">Write off</button>
+        </div>
+      </div>
+    </div>`);
+  document.getElementById('app').appendChild(overlay);
+  if (state.writeOffError) overlay.querySelector('#wo-err').appendChild(el(`<div class="err-msg">${escapeHtml(state.writeOffError)}</div>`));
+  overlay.querySelector('#wo-cancel').addEventListener('click', ()=>{ state.writingOffBatch=null; render(); });
+  overlay.addEventListener('click', (e)=>{ if(e.target===overlay){ state.writingOffBatch=null; render(); }});
+  overlay.querySelector('#wo-save').addEventListener('click', ()=>{
+    const qty = parseInt(overlay.querySelector('#wo-qty').value);
+    if (!qty || qty <= 0){ state.writeOffError='Enter a quantity greater than 0.'; render(); return; }
+    const reason = overlay.querySelector('#wo-reason').value.trim();
+    writeOffBatch(b.id, { quantity: qty, reason: reason || undefined });
+  });
+}
+
+/* ============ RENDER: SALE ============ */
+function renderSale(){
+  const main = el(`<div class="main"></div>`);
+  main.appendChild(el(`<div class="topline"><div><div class="eyebrow">Checkout</div><h1 class="pagehead grad-text">New sale</h1></div></div>`));
+
+  const grid = el(`<div class="scan-grid"></div>`);
+  const scanPanel = el(`
+    <div class="scan-panel">
+      <h3>Scan items into the cart</h3>
+      <div class="field"><input type="text" id="sale-usb" placeholder="Scan or type a barcode, then Enter" autofocus></div>
+      <div class="usb-hint">Camera works too — tap below.</div>
+      <div style="margin-top:10px;">
+        ${state.cameraActive
+          ? `<button class="btn red block" id="sale-cam-stop"><span class="pulse-dot"></span>Stop camera</button>`
+          : `<button class="btn ghost block" id="sale-cam-start">Use camera instead</button>`}
+      </div>
+      <div class="viewfinder" style="margin-top:12px;${state.cameraActive?'':'display:none;'}">
+        <div class="reader-el" id="sale-reader"></div>
+        ${state.cameraActive ? `<div class="corner c-tl"></div><div class="corner c-tr"></div><div class="corner c-bl"></div><div class="corner c-br"></div>` : ''}
+      </div>
+      <div id="sale-scan-slot"></div>
+    </div>`);
+
+  const cartPanel = el(`
+    <div class="scan-panel">
+      <h3>Cart</h3>
+      <div id="cart-list"></div>
+      <div class="cart-total"><span>Total</span><span class="mono">₹${cartTotal().toFixed(2)}</span></div>
+      <div id="sale-msgs"></div>
+      <button class="btn amber block" id="complete-sale" ${state.cart.length===0?'disabled':''}>Complete sale</button>
+    </div>`);
+
+  grid.appendChild(scanPanel);
+  grid.appendChild(cartPanel);
+  main.appendChild(grid);
+  renderShell(main);
+
+  const usbInput = main.querySelector('#sale-usb');
+  usbInput.addEventListener('keydown', (e)=>{
+    if (e.key === 'Enter'){
+      e.preventDefault();
+      lookupBarcode(usbInput.value, (product)=>addToCart(product));
+      usbInput.value = '';
+    }
+  });
+  usbInput.focus();
+
+  const camStart = main.querySelector('#sale-cam-start');
+  if (camStart) camStart.addEventListener('click', ()=>startCamera('sale-reader', (code)=>lookupBarcode(code, (product)=>addToCart(product))));
+  const camStop = main.querySelector('#sale-cam-stop');
+  if (camStop) camStop.addEventListener('click', ()=>{ stopCamera(); render(); });
+
+  const slot = main.querySelector('#sale-scan-slot');
+  if (state.scanResult && state.scanResult.status === 'notfound'){
+    slot.appendChild(el(`<div class="scan-result notfound">No product found for <span class="mono">${escapeHtml(state.scanResult.code)}</span>.</div>`));
+  }
+
+  const cartList = main.querySelector('#cart-list');
+  if (state.cart.length === 0){
+    cartList.appendChild(el(`<div class="cart-empty">Cart is empty — scan an item to begin.</div>`));
+  } else {
+    state.cart.forEach(c=>{
+      cartList.appendChild(el(`
+        <div class="cart-item">
+          <div>
+            <div class="ci-name">${escapeHtml(c.product.name)}</div>
+            <div class="ci-sub">₹${c.product.sell_price ?? '—'} each</div>
+          </div>
+          <div class="qty-ctrl">
+            <button data-minus="${c.product.id}">−</button>
+            <span>${c.qty}</span>
+            <button data-plus="${c.product.id}">+</button>
+          </div>
+        </div>`));
+    });
+  }
+  main.querySelectorAll('[data-plus]').forEach(b=>b.addEventListener('click', ()=>changeCartQty(b.dataset.plus, 1)));
+  main.querySelectorAll('[data-minus]').forEach(b=>b.addEventListener('click', ()=>changeCartQty(b.dataset.minus, -1)));
+
+  const msgs = main.querySelector('#sale-msgs');
+  if (state.saleError) msgs.appendChild(el(`<div class="err-msg">${escapeHtml(state.saleError)}</div>`));
+  if (state.saleOk) msgs.appendChild(el(`<div class="ok-msg">${escapeHtml(state.saleOk)}</div>`));
+  main.querySelector('#complete-sale').addEventListener('click', completeSale);
+}
+
+/* ============ RENDER: SCAN (lookup only) ============ */
+function renderScan(){
+  const main = el(`<div class="main"></div>`);
+  main.appendChild(el(`<div class="topline"><div><div class="eyebrow">Live lookup</div><h1 class="pagehead grad-text">Scan a barcode</h1></div></div>`));
+  const grid = el(`<div class="scan-grid"></div>`);
+  const camPanel = el(`
+    <div class="scan-panel">
+      <h3>Camera</h3>
+      <div class="viewfinder">
+        <div class="reader-el" id="lookup-reader"></div>
+        ${state.cameraActive ? `<div class="corner c-tl"></div><div class="corner c-tr"></div><div class="corner c-bl"></div><div class="corner c-br"></div>` : `<div class="cam-placeholder">Camera is off</div>`}
+      </div>
+      <div style="margin-top:12px;">
+        ${state.cameraActive
+          ? `<button class="btn red block"><span class="pulse-dot"></span>Stop camera</button>`
+          : `<button class="btn amber block" id="cam-start">Start camera scan</button>`}
+      </div>
+    </div>`);
+  if (state.cameraActive) camPanel.querySelector('.btn.red').id='cam-stop';
+
+  const usbPanel = el(`
+    <div class="scan-panel">
+      <h3>USB / Bluetooth scanner</h3>
+      <div class="field"><label>Scan or type a barcode</label><input type="text" id="usb-input" placeholder="Aim the scanner here and pull the trigger" autofocus></div>
+      <div class="usb-hint">Click into the field once, then scan. Looks up automatically on Enter.</div>
+      <div id="scan-result-slot"></div>
+    </div>`);
+
+  grid.appendChild(camPanel); grid.appendChild(usbPanel);
+  main.appendChild(grid);
+  renderShell(main);
+
+  const camStart = main.querySelector('#cam-start');
+  if (camStart) camStart.addEventListener('click', ()=>startCamera('lookup-reader', (code)=>lookupBarcode(code)));
+  const camStop = main.querySelector('#cam-stop');
+  if (camStop) camStop.addEventListener('click', ()=>{ stopCamera(); render(); });
+
+  const usbInput = main.querySelector('#usb-input');
+  usbInput.addEventListener('keydown', (e)=>{ if (e.key==='Enter'){ e.preventDefault(); lookupBarcode(usbInput.value); usbInput.value=''; }});
+  usbInput.focus();
+
+  const slot = main.querySelector('#scan-result-slot');
+  if (state.scanResult){
+    const r = state.scanResult;
+    if (r.status === 'loading') slot.appendChild(el(`<div class="scan-result">Looking up <span class="mono">${escapeHtml(r.code)}</span>…</div>`));
+    else if (r.status === 'found'){
+      const pr = r.product; const status = stockStatus(pr);
+      slot.appendChild(el(`
+        <div class="scan-result found">
+          <div style="font-weight:700;font-size:15px;margin-bottom:4px;">${escapeHtml(pr.name||'Unnamed product')}</div>
+          <div class="sub" style="margin-bottom:8px;">SKU ${escapeHtml(pr.sku||'—')} · ${escapeHtml(pr.barcode||r.code)}</div>
+          <span class="badge ${status}">${escapeHtml(stockLabel(status))}</span>
+          <span class="mono" style="margin-left:10px;">${pr.sell_price!=null?('₹'+pr.sell_price):''}</span>
+        </div>`));
+    } else if (r.status === 'notfound'){
+      slot.appendChild(el(`<div class="scan-result notfound">No product found for <span class="mono">${escapeHtml(r.code)}</span>. Add it from the Stock tab.</div>`));
+    }
+  }
+}
+
+/* ============ RENDER: DASHBOARD ============ */
+function rupees(n){ return '₹' + Number(n||0).toLocaleString('en-IN', {maximumFractionDigits:0}); }
+
+function renderLossHero(main){
+  const s = state.dashSummary || {};
+  const expiryList = Array.isArray(state.expiryRisks) ? state.expiryRisks : [];
+  const deadList = Array.isArray(state.deadStock) ? state.deadStock : [];
+  const stockoutList = Array.isArray(state.stockoutRisks) ? state.stockoutRisks : [];
+
+  const expiryLoss = expiryList.reduce((sum,r)=>sum + Number(r.estimated_loss||0), 0);
+  const deadValue = deadList.reduce((sum,r)=>sum + Number(r.stock_value||0), 0);
+  const totalRisk = s.potential_loss_today != null ? Number(s.potential_loss_today) : (expiryLoss + deadValue);
+
+  main.appendChild(el(`
+    <div class="glass" style="border-radius:16px;padding:26px 28px;margin-bottom:22px;border-color:rgba(255,92,114,.35);position:relative;overflow:hidden;">
+      <div style="position:absolute;top:-60px;right:-60px;width:200px;height:200px;border-radius:50%;background:radial-gradient(circle, rgba(255,92,114,.22), transparent 70%);"></div>
+      <div class="eyebrow" style="color:var(--red);">Today's business risk</div>
+      <div style="font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:15px;color:var(--steel);margin-top:6px;">TOTAL MONEY AT RISK</div>
+      <div style="font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:46px;color:#fff;margin-top:2px;text-shadow:0 0 30px rgba(255,92,114,.4);">${rupees(totalRisk)}</div>
+    </div>`));
+
+  const grid = el(`<div class="stat-grid" style="margin-bottom:22px;"></div>`);
+  grid.appendChild(el(`
+    <div class="stat-card" style="border-color:rgba(255,194,75,.3);">
+      <div class="stat-label">⚠️ Expiry risk</div>
+      <div class="stat-value" style="color:var(--amber);">${rupees(expiryLoss)}</div>
+      <div class="sub" style="margin-top:4px;">${expiryList.length} batch${expiryList.length===1?'':'es'}</div>
+    </div>`));
+  grid.appendChild(el(`
+    <div class="stat-card" style="border-color:rgba(124,108,255,.3);">
+      <div class="stat-label">🐌 Dead stock</div>
+      <div class="stat-value" style="color:var(--violet);">${rupees(deadValue)}</div>
+      <div class="sub" style="margin-top:4px;">${deadList.length} product${deadList.length===1?'':'s'} locked</div>
+    </div>`));
+  grid.appendChild(el(`
+    <div class="stat-card">
+      <div class="stat-label">🛒 Stockout risk</div>
+      <div class="stat-value">${stockoutList.length} SKU${stockoutList.length===1?'':'s'}</div>
+      <div class="sub" style="margin-top:4px;">Rupee value not tracked yet</div>
+    </div>`));
+  grid.appendChild(el(`
+    <div class="stat-card" style="opacity:.6;">
+      <div class="stat-label">🔴 Stock mismatch</div>
+      <div class="stat-value" style="font-size:15px;">Not tracked yet</div>
+      <div class="sub" style="margin-top:4px;">No shrinkage API on backend</div>
+    </div>`));
+  main.appendChild(grid);
+
+  if (s.todays_sales_amount != null || s.inventory_value != null){
+    const row = el(`<div class="stat-grid" style="margin-bottom:22px;"></div>`);
+    if (s.todays_sales_amount != null) row.appendChild(el(`<div class="stat-card"><div class="stat-label">Today's sales</div><div class="stat-value">${rupees(s.todays_sales_amount)}</div><div class="sub" style="margin-top:4px;">${s.todays_sales_count ?? 0} transaction${(s.todays_sales_count===1)?'':'s'}</div></div>`));
+    if (s.inventory_value != null) row.appendChild(el(`<div class="stat-card"><div class="stat-label">Inventory value</div><div class="stat-value">${rupees(s.inventory_value)}</div></div>`));
+    main.appendChild(row);
+  }
+
+  const actions = Array.isArray(s.top_actions) ? s.top_actions : [];
+  main.appendChild(el(`<div class="section-head"><h3>🤖 Today's actions</h3></div>`));
+  const actCard = el(`<div class="card" style="padding:6px 8px;"></div>`);
+  if (actions.length === 0){
+    actCard.appendChild(el(`<div style="color:var(--steel);font-size:13px;padding:16px;">No urgent actions right now — nice.</div>`));
+  } else {
+    actions.forEach((a,i)=>{
+      actCard.appendChild(el(`
+        <div style="display:flex;gap:12px;align-items:flex-start;padding:12px 14px;${i<actions.length-1?'border-bottom:1px solid var(--line);':''}">
+          <div style="flex-shrink:0;width:24px;height:24px;border-radius:7px;background:var(--mint-soft);color:var(--mint);font-family:'IBM Plex Mono',monospace;font-weight:700;font-size:12px;display:flex;align-items:center;justify-content:center;">${i+1}</div>
+          <div style="font-size:13.5px;line-height:1.5;padding-top:2px;">${escapeHtml(a)}</div>
+        </div>`));
+    });
+  }
+  main.appendChild(actCard);
+}
+
+function renderDashboard(){
+  const main = el(`<div class="main"></div>`);
+  main.appendChild(el(`
+    <div class="topline">
+      <div><div class="eyebrow">Loss prevention</div><h1 class="pagehead grad-text">Dashboard</h1></div>
+      <button class="btn ghost sm" id="refresh-dash">Refresh</button>
+    </div>`));
+
+  if (state.dashLoading){
+    main.appendChild(el(`<div class="card"><div class="empty-state">Loading today's numbers…</div></div>`));
+    renderShell(main);
+    main.querySelector('#refresh-dash').addEventListener('click', loadDashboard);
+    return;
+  }
+  if (state.dashError){
+    main.appendChild(el(`<div class="err-msg">${escapeHtml(state.dashError)}</div>`));
+  } else {
+    renderLossHero(main);
+
+    if (state.dashBriefing && typeof state.dashBriefing === 'object'){
+      const brief = Object.values(state.dashBriefing).find(v => typeof v === 'string' && v.length > 20);
+      if (brief) main.appendChild(el(`<div class="info-msg">${escapeHtml(brief)}</div>`));
+    }
+
+    // High-risk alerts with a send-alert action
+    main.appendChild(el(`<div class="section-head"><h3>High-risk alerts</h3></div>`));
+    const alertCard = el(`<div class="card" style="padding:16px;"></div>`);
+    const rows = Array.isArray(state.highRiskAlerts) ? state.highRiskAlerts : (state.highRiskAlerts && state.highRiskAlerts.items) || [];
+    if (rows.length === 0){
+      alertCard.appendChild(el(`<div style="color:var(--steel);font-size:13px;padding:6px 0;">No high-risk items right now.</div>`));
+    } else {
+      const keys = Object.keys(rows[0]).filter(k => typeof rows[0][k] !== 'object').slice(0,5);
+      const table = el(`<table class="gtable"></table>`);
+      table.appendChild(el(`<thead><tr>${keys.map(k=>`<th>${escapeHtml(k.replace(/_/g,' '))}</th>`).join('')}</tr></thead>`));
+      const tbody = el(`<tbody></tbody>`);
+      rows.forEach(r=>tbody.appendChild(el(`<tr>${keys.map(k=>`<td>${escapeHtml(r[k]==null?'—':r[k])}</td>`).join('')}</tr>`)));
+      table.appendChild(tbody);
+      alertCard.appendChild(table);
+    }
+    main.appendChild(alertCard);
+    const alertBtnWrap = el(`<div style="margin:10px 0 24px;display:flex;align-items:center;gap:12px;">
+      <button class="btn ghost sm" id="send-alert">${icon('bell')} ${state.alertSending ? 'Sending…' : 'Send daily alert'}</button>
+      <span class="sub" id="alert-msg">${escapeHtml(state.alertMsg)}</span>
+    </div>`);
+    main.appendChild(alertBtnWrap);
+
+    if (state.billingStatus) { main.appendChild(el(`<div class="section-head"><h3>Billing</h3></div>`)); renderStatCards(main, state.billingStatus); }
+
+    renderGenericTable(main, 'Stockout risks', state.stockoutRisks);
+    renderGenericTable(main, 'Expiry risks', state.expiryRisks);
+    renderGenericTable(main, 'Dead stock', state.deadStock);
+    renderGenericTable(main, 'Purchase recommendations', state.purchaseRecs);
+    renderGenericTable(main, 'Recent stock movements', state.movements);
+  }
+  renderShell(main);
+  main.querySelector('#refresh-dash').addEventListener('click', loadDashboard);
+  const sendBtn = main.querySelector('#send-alert');
+  if (sendBtn) sendBtn.addEventListener('click', sendDailyAlert);
+}
+
+/* ============ RENDER: HELP ============ */
+const HELP_STEPS = {
+  en: [
+    { title: 'Add your products', body: 'Go to Stock → Add product. Fill in name, SKU, barcode (optional), cost price, sell price and a reorder level. SKU is a unique code you assign to identify the product in the system.' },
+    { title: 'Receive stock (batches)', body: 'On a product row, use Receive to log new stock — quantity, cost price, batch number and expiry date. This is what powers expiry-risk tracking, so add the expiry date whenever the product has one.' },
+    { title: 'Ring up a sale', body: 'Go to Sale, add items to the cart by SKU/name, and check out. Stock is deducted automatically, oldest-expiry batch first (FEFO), so shelf-expiring stock clears before newer batches.' },
+    { title: 'Scan instead of typing', body: 'Go to Scan to use your camera to read a barcode — it looks the product up instantly and adds it to the cart. If your device/browser can\u2019t scan, just type the barcode or SKU manually.' },
+    { title: 'Check your Dashboard', body: 'Dashboard shows Total Money At Risk plus a breakdown — expiry risk, dead stock, stockout risk — and a ranked list of today\u2019s recommended actions. Refresh anytime to pull the latest numbers.' },
+    { title: 'Keep an eye on Billing', body: 'Your trial/subscription status shows on the Dashboard\u2019s Billing section. If your plan lapses, new sales and stock changes pause until it\u2019s renewed.' },
+  ],
+  hi: [
+    { title: 'अपने प्रोडक्ट्स जोड़ें', body: 'Stock → Add product पर जाएं। नाम, SKU, बारकोड (वैकल्पिक), cost price, sell price और reorder level भरें। SKU एक यूनीक कोड है जो आप खुद प्रोडक्ट को देते हैं।' },
+    { title: 'स्टॉक रिसीव करें (बैच)', body: 'किसी प्रोडक्ट पर Receive दबाकर नया स्टॉक दर्ज करें — quantity, cost price, batch number और expiry date। expiry date डालना ज़रूरी है ताकि expiry-risk सही से ट्रैक हो।' },
+    { title: 'सेल करें', body: 'Sale पर जाएं, SKU/नाम से कार्ट में आइटम जोड़ें और checkout करें। सबसे पहले expire होने वाला बैच (FEFO) अपने आप कट जाता है।' },
+    { title: 'टाइप करने की बजाय स्कैन करें', body: 'Scan पर जाकर कैमरे से बारकोड पढ़ें — प्रोडक्ट तुरंत मिल जाएगा और कार्ट में जुड़ जाएगा। अगर स्कैन न हो तो बारकोड/SKU मैन्युअली टाइप करें।' },
+    { title: 'डैशबोर्ड चेक करें', body: 'Dashboard में Total Money At Risk के साथ expiry risk, dead stock, stockout risk का ब्रेकडाउन और आज के टॉप actions दिखते हैं। कभी भी Refresh दबाकर लेटेस्ट नंबर देखें।' },
+    { title: 'बिलिंग पर नज़र रखें', body: 'Trial/subscription status Dashboard के Billing सेक्शन में दिखता है। plan lapse होने पर नई सेल्स और स्टॉक बदलाव रुक जाते हैं।' },
+  ],
+};
+
+const FAQS = {
+  en: [
+    { q: 'What is a SKU and where do I set it?', a: 'SKU (Stock Keeping Unit) is a unique code you give each product yourself — e.g. "PARLE-G-100G" — so the system can tell products apart. You set it once when adding a product, and it also shows in the Stock list next to the barcode.' },
+    { q: 'What\u2019s the difference between SKU and barcode?', a: 'SKU is a code you choose, used inside this app. Barcode is the number printed on the product\u2019s actual packaging, used for camera/scanner lookup at the POS. A product can have both — barcode is optional.' },
+    { q: 'How does expiry risk get calculated?', a: 'Every batch you receive can have an expiry date. Batches expiring within the next few days are flagged as expiry risk, valued at their cost price, so you can discount or move that stock before it\u2019s a loss.' },
+    { q: 'What counts as dead stock?', a: 'A product with no sale recorded in the last 21+ days is flagged as dead stock — capital that\u2019s stuck on the shelf instead of turning over.' },
+    { q: 'Why did a sale get rejected?', a: 'Sales are rejected if you\u2019re trying to sell more units than are currently in stock. Check the product\u2019s current stock on the Stock tab, or receive more stock first.' },
+    { q: 'Can more than one person use the same store account?', a: 'Right now it\u2019s a single owner login per store — separate cashier/manager roles aren\u2019t built yet. Everyone currently shares the one login.' },
+    { q: 'Why was I logged out after refreshing the page?', a: 'Login is kept in memory for the session only, by design, so refreshing the page logs you out. Just log back in — your data isn\u2019t affected.' },
+    { q: 'What happens if my trial/subscription lapses?', a: 'Data-changing actions (adding stock, ringing up sales, etc.) pause until the plan is renewed. You can still view your Billing status at any time to check where things stand.' },
+    { q: 'How do I get daily updates on WhatsApp?', a: 'Scroll down to "WhatsApp & reports" below, save your WhatsApp number, then use "Send WhatsApp update now" to test it. Once it works, ask whoever manages your server to schedule it daily.' },
+    { q: 'What\u2019s in the weekly report?', a: 'A PDF with this week\u2019s sales total, inventory value, potential loss, a risk snapshot, top expiry risks, and recommended actions — downloadable or emailable from "WhatsApp & reports" below.' },
+  ],
+  hi: [
+    { q: 'SKU क्या है और कहां सेट करें?', a: 'SKU (Stock Keeping Unit) एक यूनीक कोड है जो आप खुद प्रोडक्ट को देते हैं — जैसे "PARLE-G-100G" — ताकि सिस्टम हर प्रोडक्ट को पहचान सके। यह प्रोडक्ट जोड़ते समय एक बार सेट होता है, और Stock list में बारकोड के बगल में भी दिखता है।' },
+    { q: 'SKU और बारकोड में क्या फर्क है?', a: 'SKU वो कोड है जो आप खुद चुनते हैं, ऐप के अंदर इस्तेमाल होता है। बारकोड प्रोडक्ट की असली पैकेजिंग पर छपा नंबर है, POS पर कैमरा/स्कैनर से पढ़ने के लिए। दोनों हो सकते हैं — बारकोड वैकल्पिक है।' },
+    { q: 'Expiry risk कैसे कैलकुलेट होता है?', a: 'हर बैच की एक expiry date हो सकती है। अगले कुछ दिनों में expire होने वाले बैच expiry risk में दिखते हैं, cost price के हिसाब से valued — ताकि आप उस स्टॉक को loss होने से पहले discount/move कर सकें।' },
+    { q: 'Dead stock क्या होता है?', a: 'जिस प्रोडक्ट की पिछले 21+ दिनों में कोई सेल नहीं हुई, वो dead stock में गिना जाता है — पैसा जो शेल्फ पर फंसा है।' },
+    { q: 'सेल reject क्यों हुई?', a: 'अगर आप स्टॉक से ज़्यादा यूनिट बेचने की कोशिश करते हैं तो सेल reject हो जाती है। Stock tab पर current stock चेक करें, या पहले और स्टॉक receive करें।' },
+    { q: 'क्या एक ही स्टोर account कई लोग इस्तेमाल कर सकते हैं?', a: 'अभी सिर्फ एक owner login प्रति स्टोर है — अलग cashier/manager roles अभी नहीं बने हैं। सब एक ही login शेयर करते हैं।' },
+    { q: 'पेज रिफ्रेश करने पर logout क्यों हो जाता है?', a: 'Login सिर्फ session के लिए memory में रहता है, यह जानबूझकर है, इसलिए refresh करने पर logout हो जाता है। बस दोबारा login करें — आपका data सुरक्षित रहता है।' },
+    { q: 'Trial/subscription खत्म होने पर क्या होता है?', a: 'Data बदलने वाले actions (स्टॉक जोड़ना, सेल करना आदि) plan renew होने तक रुक जाते हैं। Billing status कभी भी देख सकते हैं।' },
+    { q: 'WhatsApp पर डेली अपडेट कैसे पाएं?', a: 'नीचे "WhatsApp और रिपोर्ट्स" में अपना WhatsApp नंबर सेव करें, फिर "अभी WhatsApp अपडेट भेजें" से टेस्ट करें। काम करने के बाद, इसे रोज़ाना automatic चलाने के लिए अपने सर्वर मैनेजर से schedule करवाएं।' },
+    { q: 'साप्ताहिक रिपोर्ट में क्या होता है?', a: 'एक PDF जिसमें इस हफ्ते की कुल सेल्स, inventory value, potential loss, risk स्नैपशॉट, टॉप expiry risks, और recommended actions होते हैं — नीचे "WhatsApp और रिपोर्ट्स" से डाउनलोड या ईमेल कर सकते हैं।' },
+  ],
+};
+
+/* ============ HELP: API HELPERS ============ */
+async function loadProfile(){
+  if (state.profileLoading) return;
+  state.profileLoading = true; state.profileError = ""; render();
+  try{
+    const data = await api('/auth/me');
+    state.profile = data;
+    state.waNumberInput = data.whatsapp_number || "";
+  } catch(e){ state.profileError = e.message; }
+  state.profileLoading = false; render();
+}
+
+async function saveWhatsappNumber(){
+  state.waSaving = true; state.waMsg = ""; render();
+  try{
+    const data = await api('/auth/me', {method:'PATCH', body:{whatsapp_number: state.waNumberInput || null}});
+    state.profile = data;
+    state.waMsg = 'Saved.';
+  } catch(e){ state.waMsg = e.message; }
+  state.waSaving = false; render();
+}
+
+async function sendWhatsappNow(){
+  state.waSaving = true; state.waMsg = ""; render();
+  try{
+    const data = await api('/notifications/send-whatsapp-alert', {method:'POST'});
+    state.waMsg = data.sent ? 'Sent!' : (data.error || 'Could not send.');
+  } catch(e){ state.waMsg = e.message; }
+  state.waSaving = false; render();
+}
+
+async function sendDailyDigestNow(){
+  state.digestSending = true; state.digestMsg = ""; render();
+  try{
+    const data = await api('/notifications/send-daily-digest', {method:'POST'});
+    const parts = [];
+    if (data.email) parts.push('Email: ' + (data.email.sent ? 'sent' : (data.email.error || 'failed')));
+    if (data.whatsapp) parts.push('WhatsApp: ' + (data.whatsapp.sent ? 'sent' : (data.whatsapp.error || 'failed')));
+    state.digestMsg = parts.join(' · ');
+  } catch(e){ state.digestMsg = e.message; }
+  state.digestSending = false; render();
+}
+
+async function emailWeeklyReportNow(){
+  state.weeklySending = true; state.weeklyMsg = ""; render();
+  try{
+    const data = await api('/notifications/send-weekly-report', {method:'POST'});
+    state.weeklyMsg = data.sent ? 'Emailed!' : (data.error || 'Could not send.');
+  } catch(e){ state.weeklyMsg = e.message; }
+  state.weeklySending = false; render();
+}
+
+async function downloadWeeklyReportNow(){
+  state.weeklyDownloading = true; state.weeklyMsg = ""; render();
+  try{
+    const res = await fetch(API_BASE + '/notifications/weekly-report.pdf', {
+      headers: { 'Authorization': 'Bearer ' + state.token },
+    });
+    if (!res.ok) throw new Error('Download failed (' + res.status + ')');
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'weekly-report.pdf'; document.body.appendChild(a); a.click();
+    a.remove(); URL.revokeObjectURL(url);
+  } catch(e){ state.weeklyMsg = e.message; }
+  state.weeklyDownloading = false; render();
+}
+
+async function sendChatMessage(){
+  const question = state.chatInput.trim();
+  if (!question || state.chatSending) return;
+  state.chatMessages.push({ role: 'user', text: question });
+  state.chatInput = ""; state.chatSending = true; state.chatError = ""; render();
+  try{
+    const data = await api('/assistant/ask', {method:'POST', body:{question}});
+    state.chatMessages.push({ role: 'assistant', text: data.answer });
+  } catch(e){ state.chatError = e.message; }
+  state.chatSending = false; render();
+}
+
+function renderHelp(){
+  if (!state.profile && !state.profileLoading) loadProfile();
+
+  const steps = HELP_STEPS[state.language] || HELP_STEPS.en;
+  const faqs = FAQS[state.language] || FAQS.en;
+
+  const main = el(`<div class="main"></div>`);
+  main.appendChild(el(`
+    <div class="topline">
+      <div><div class="eyebrow">${t('help_eyebrow')}</div><h1 class="pagehead grad-text">${t('help_title')}</h1></div>
+      <div class="tabs" style="max-width:130px;">
+        <div class="tab" data-lang="en">EN</div>
+        <div class="tab" data-lang="hi">हिं</div>
+      </div>
+    </div>`));
+
+  /* ---- AI chat ---- */
+  main.appendChild(el(`<div class="section-head"><h3>${icon('help')} ${t('help_ask_ai')}</h3></div>`));
+  const chatCard = el(`<div class="card" style="padding:14px 16px;"></div>`);
+  chatCard.appendChild(el(`<div class="sub" style="margin-bottom:12px;font-size:12px;">${escapeHtml(t('help_ask_ai_sub'))}</div>`));
+
+  if (state.chatMessages.length){
+    const log = el(`<div style="display:flex;flex-direction:column;gap:10px;margin-bottom:12px;"></div>`);
+    state.chatMessages.forEach(m=>{
+      const isUser = m.role === 'user';
+      log.appendChild(el(`
+        <div style="align-self:${isUser?'flex-end':'flex-start'};max-width:85%;padding:10px 13px;border-radius:11px;font-size:13px;line-height:1.5;
+          background:${isUser?'var(--mint-soft)':'rgba(255,255,255,.05)'};color:${isUser?'var(--mint)':'var(--text)'};
+          border:1px solid ${isUser?'rgba(0,230,168,.3)':'var(--line)'};white-space:pre-wrap;">${escapeHtml(m.text)}</div>`));
+    });
+    chatCard.appendChild(log);
+  }
+  if (state.chatSending){
+    chatCard.appendChild(el(`<div class="sub" style="margin-bottom:10px;">${escapeHtml(t('help_thinking'))}</div>`));
+  }
+  if (state.chatError){
+    chatCard.appendChild(el(`<div class="err-msg" style="margin-bottom:10px;">${escapeHtml(state.chatError)}</div>`));
+  }
+  const chatRow = el(`<div style="display:flex;gap:8px;">
+    <input id="chat-input" placeholder="${escapeHtml(t('help_ask_placeholder'))}" style="flex:1;" value="${escapeHtml(state.chatInput)}"/>
+    <button class="btn amber sm" id="chat-send" ${state.chatSending?'disabled':''}>${escapeHtml(t('help_send'))}</button>
+  </div>`);
+  chatCard.appendChild(chatRow);
+  main.appendChild(chatCard);
+
+  /* ---- How to use ---- */
+  main.appendChild(el(`<div class="section-head"><h3>${icon('book')} ${t('help_howto')}</h3></div>`));
+  const stepsCard = el(`<div class="card"></div>`);
+  steps.forEach((s, i) => {
+    stepsCard.appendChild(el(`
+      <div class="help-step">
+        <div class="help-step-num">${i+1}</div>
+        <div><h4>${escapeHtml(s.title)}</h4><p>${escapeHtml(s.body)}</p></div>
+      </div>`));
+  });
+  main.appendChild(stepsCard);
+
+  /* ---- FAQs ---- */
+  main.appendChild(el(`<div class="section-head"><h3>${t('help_faqs')}</h3></div>`));
+  const faqCard = el(`<div class="card"></div>`);
+  faqs.forEach((f, i) => {
+    const item = el(`
+      <div class="faq-item${state.openFaqs.has(i) ? ' open' : ''}">
+        <button class="faq-q" data-idx="${i}"><span>${escapeHtml(f.q)}</span>${icon('chevdown').replace('<svg ', '<svg class="chev" ')}</button>
+        <div class="faq-a"><p>${escapeHtml(f.a)}</p></div>
+      </div>`);
+    faqCard.appendChild(item);
+  });
+  main.appendChild(faqCard);
+
+  /* ---- WhatsApp & reports settings ---- */
+  main.appendChild(el(`<div class="section-head"><h3>${icon('phone')} ${t('help_settings')}</h3></div>`));
+  const settingsCard = el(`<div class="card" style="padding:16px;"></div>`);
+  settingsCard.appendChild(el(`
+    <div class="field">
+      <label>${escapeHtml(t('help_wa_label'))}</label>
+      <div style="display:flex;gap:8px;">
+        <input id="wa-number" placeholder="${escapeHtml(t('help_wa_placeholder'))}" style="flex:1;" value="${escapeHtml(state.waNumberInput)}"/>
+        <button class="btn sm" id="wa-save" ${state.waSaving?'disabled':''}>${escapeHtml(t('help_save'))}</button>
+      </div>
+    </div>`));
+  const btnWrap = el(`<div style="display:flex;flex-wrap:wrap;gap:10px;margin-top:6px;"></div>`);
+  btnWrap.appendChild(el(`<button class="btn ghost sm" id="wa-send-now" ${state.waSaving?'disabled':''}>${icon('phone')} ${escapeHtml(t('help_send_wa_now'))}</button>`));
+  btnWrap.appendChild(el(`<button class="btn ghost sm" id="send-digest" ${state.digestSending?'disabled':''}>${icon('bell')} ${escapeHtml(t('help_send_digest'))}</button>`));
+  btnWrap.appendChild(el(`<button class="btn ghost sm" id="weekly-download" ${state.weeklyDownloading?'disabled':''}>${icon('book')} ${escapeHtml(t('help_download_weekly'))}</button>`));
+  btnWrap.appendChild(el(`<button class="btn ghost sm" id="weekly-email" ${state.weeklySending?'disabled':''}>${icon('mail')} ${escapeHtml(t('help_email_weekly'))}</button>`));
+  settingsCard.appendChild(btnWrap);
+  const msgs = [state.waMsg, state.digestMsg, state.weeklyMsg].filter(Boolean).join(' · ');
+  if (msgs) settingsCard.appendChild(el(`<div class="sub" style="margin-top:10px;">${escapeHtml(msgs)}</div>`));
+  main.appendChild(settingsCard);
+
+  /* ---- Contact ---- */
+  main.appendChild(el(`<div class="section-head"><h3>${t('help_contact')}</h3></div>`));
+  const contactCard = el(`<div class="card"></div>`);
+  contactCard.appendChild(el(`
+    <div class="contact-card">
+      <div class="contact-ic">${icon('mail')}</div>
+      <div><div class="cc-label">Email</div><div class="cc-value"><a href="mailto:support@stockroom.app">support@stockroom.app</a></div></div>
+    </div>`));
+  contactCard.appendChild(el(`
+    <div class="contact-card">
+      <div class="contact-ic">${icon('phone')}</div>
+      <div><div class="cc-label">Phone / WhatsApp</div><div class="cc-value">+91 00000 00000</div></div>
+    </div>`));
+  contactCard.appendChild(el(`
+    <div class="contact-card">
+      <div class="contact-ic">${icon('activity')}</div>
+      <div><div class="cc-label">Response time</div><div class="cc-value" style="font-weight:500;color:var(--steel);">Usually within one business day</div></div>
+    </div>`));
+  main.appendChild(contactCard);
+  main.appendChild(el(`<div class="sub" style="margin-top:10px;">${escapeHtml(t('help_store'))}: ${escapeHtml(state.email || '\u2014')}</div>`));
+
+  renderShell(main);
+
+  /* ---- wire up events ---- */
+  const langTabs = main.querySelectorAll('.tab[data-lang]');
+  langTabs.forEach(tb=>{
+    if (tb.dataset.lang === state.language) tb.classList.add('active');
+    tb.addEventListener('click', ()=> setLanguage(tb.dataset.lang));
+  });
+
+  main.querySelectorAll('.faq-q').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const idx = Number(btn.dataset.idx);
+      if (state.openFaqs.has(idx)) state.openFaqs.delete(idx); else state.openFaqs.add(idx);
+      render();
+    });
+  });
+
+  const chatInput = main.querySelector('#chat-input');
+  const chatSend = main.querySelector('#chat-send');
+  if (chatInput){
+    chatInput.addEventListener('input', ()=>{ state.chatInput = chatInput.value; });
+    chatInput.addEventListener('keydown', (e)=>{ if (e.key === 'Enter'){ e.preventDefault(); sendChatMessage(); } });
+  }
+  if (chatSend) chatSend.addEventListener('click', sendChatMessage);
+
+  const waInput = main.querySelector('#wa-number');
+  if (waInput) waInput.addEventListener('input', ()=>{ state.waNumberInput = waInput.value; });
+  const waSave = main.querySelector('#wa-save');
+  if (waSave) waSave.addEventListener('click', saveWhatsappNumber);
+  const waSendNow = main.querySelector('#wa-send-now');
+  if (waSendNow) waSendNow.addEventListener('click', sendWhatsappNow);
+  const digestBtn = main.querySelector('#send-digest');
+  if (digestBtn) digestBtn.addEventListener('click', sendDailyDigestNow);
+  const weeklyDl = main.querySelector('#weekly-download');
+  if (weeklyDl) weeklyDl.addEventListener('click', downloadWeeklyReportNow);
+  const weeklyEm = main.querySelector('#weekly-email');
+  if (weeklyEm) weeklyEm.addEventListener('click', emailWeeklyReportNow);
+}
+
+/* ============ ROOT RENDER ============ */
+function render(){
+  if (!state.token){ renderLogin(); return; }
+  if (state.view === 'sale') renderSale();
+  else if (state.view === 'scan') renderScan();
+  else if (state.view === 'dashboard') renderDashboard();
+  else if (state.view === 'help') renderHelp();
+  else renderProducts();
+}
+render();
+</script>
+</body>
+</html>

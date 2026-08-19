@@ -79,6 +79,21 @@
   .section-head{display:flex;align-items:center;justify-content:space-between;margin:22px 0 10px;}
   .section-head h3{font-size:14px;color:var(--steel);text-transform:uppercase;letter-spacing:.06em;display:flex;align-items:center;gap:8px;}
 
+  .patient-row{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid var(--line);gap:12px;}
+  .patient-row:last-child{border-bottom:none;}
+  .patient-row:hover{background:rgba(255,255,255,.02);}
+  .patient-left{display:flex;align-items:center;gap:12px;min-width:0;}
+  .patient-avatar{width:38px;height:38px;border-radius:50%;background:var(--teal-soft);color:var(--teal);
+    display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;flex-shrink:0;font-family:'IBM Plex Mono',monospace;}
+  .patient-name-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+  .visit-pill{font-size:11px;font-weight:600;color:var(--steel);background:var(--panel2);border:1px solid var(--line);
+    border-radius:20px;padding:2px 9px;white-space:nowrap;}
+  .search-wrap{position:relative;}
+  .search-wrap svg{position:absolute;left:13px;top:50%;transform:translateY(-50%);width:16px;height:16px;
+    stroke:var(--steel);fill:none;stroke-width:2;pointer-events:none;}
+  .search-wrap input{padding-left:38px !important;}
+  .results-count{font-size:12px;color:var(--steel);margin:-4px 0 12px;}
+
   .field{margin-bottom:14px;}
   .field label{display:block;font-size:12px;color:var(--steel);margin-bottom:6px;font-weight:600;}
   input[type=text],input[type=email],input[type=password],input[type=tel],input[type=number]{
@@ -167,6 +182,7 @@ function icon(name){
     x:`<svg viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg>`,
     card:`<svg viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>`,
     link:`<svg viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.5.5l2-2a5 5 0 0 0-7-7l-1.5 1.5"/><path d="M14 11a5 5 0 0 0-7.5-.5l-2 2a5 5 0 0 0 7 7l1.5-1.5"/></svg>`,
+    search:`<svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>`,
   };
   return M[name] || '';
 }
@@ -648,22 +664,41 @@ function renderDoctorFormModal(){
 }
 
 /* ============ RENDER: PATIENTS ============ */
+function initials(name){
+  const parts = (name || '').trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) return '?';
+  return (parts[0][0] + (parts.length > 1 ? parts[parts.length - 1][0] : '')).toUpperCase();
+}
+
 function renderPatients(){
   const wrap = el(`<div></div>`);
   wrap.appendChild(el(`<div class="section-head" style="margin-top:0;"><h3>${icon('users')} Patient Registry</h3></div>`));
   const card = el(`<div class="card"></div>`);
-  card.appendChild(el(`<div class="field"><label>Search by name or mobile</label><input type="text" id="p-search" value="${escapeHtml(state.patientSearch)}" placeholder="Rahul or 98000..."/></div>`));
+  card.appendChild(el(`
+    <div class="field">
+      <label>Search by name or mobile</label>
+      <div class="search-wrap">${icon('search')}<input type="text" id="p-search" value="${escapeHtml(state.patientSearch)}" placeholder="Rahul or 98000..." autocomplete="off"/></div>
+    </div>`));
 
   if (state.patientsLoading){
     card.appendChild(el(`<div class="empty-state">Loading…</div>`));
   } else if (!state.patients.length){
-    card.appendChild(el(`<div class="empty-state">No patients found yet. Patients are added automatically from bookings and walk-ins.</div>`));
+    card.appendChild(el(state.patientSearch
+      ? `<div class="empty-state">No patients match "${escapeHtml(state.patientSearch)}".</div>`
+      : `<div class="empty-state">No patients found yet. Patients are added automatically from bookings and walk-ins.</div>`));
   } else {
+    card.appendChild(el(`<div class="results-count">${state.patients.length} patient${state.patients.length === 1 ? '' : 's'}</div>`));
     state.patients.forEach(p=>{
       const row = el(`
-        <div class="doctor-card" data-open="${p.id}" style="cursor:pointer;">
-          <div><div class="dname">${escapeHtml(p.name)}</div><div class="dspec">${p.mobile ? escapeHtml(p.mobile) : 'No mobile on file'} · registered ${new Date(p.created_at).toLocaleDateString()}</div></div>
-          <div style="display:flex;gap:8px;"><button class="btn ghost sm" data-open2="${p.id}">View profile</button></div>
+        <div class="patient-row" data-open="${p.id}" style="cursor:pointer;">
+          <div class="patient-left">
+            <div class="patient-avatar">${initials(p.name)}</div>
+            <div style="min-width:0;">
+              <div class="patient-name-row"><span class="dname">${escapeHtml(p.name)}</span><span class="visit-pill">${p.patient_code}</span></div>
+              <div class="dspec">${p.mobile ? escapeHtml(p.mobile) : 'No mobile on file'} · registered ${new Date(p.created_at).toLocaleDateString()}</div>
+            </div>
+          </div>
+          <button class="btn ghost sm" data-open2="${p.id}">View profile</button>
         </div>`);
       card.appendChild(row);
     });
@@ -869,7 +904,7 @@ function renderBilling(){
 }
 
 /* ============ ROOT RENDER ============ */
-function render(){
+function _renderInner(){
   if (!state.token){ renderAuth(); return; }
   if (state.view === 'doctors') renderDoctors();
   else if (state.view === 'billing') renderBilling();
@@ -877,6 +912,33 @@ function render(){
   else if (state.view === 'support') renderSupport();
   else if (state.view === 'settings') renderSettings();
   else renderQueue();
+}
+
+// Every render() rebuilds the whole screen's DOM from scratch (simple, but it
+// means a plain re-render replaces even the <input> the user is actively
+// typing in with a brand-new element — which drops focus). That's exactly
+// what happened on Patients search: each keystroke's debounced reload called
+// render(), so the box lost focus after every single character and had to be
+// re-clicked. Fix: remember which element (by id) had focus and where the
+// cursor/selection was *before* rebuilding, then restore both afterwards.
+function render(){
+  const active = document.activeElement;
+  const hasSelection = active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA');
+  const focusId = active && active.id ? active.id : null;
+  const selStart = hasSelection ? active.selectionStart : null;
+  const selEnd = hasSelection ? active.selectionEnd : null;
+
+  _renderInner();
+
+  if (focusId){
+    const restored = document.getElementById(focusId);
+    if (restored){
+      restored.focus();
+      if (selStart !== null && restored.setSelectionRange){
+        try { restored.setSelectionRange(selStart, selEnd); } catch(e){ /* not a text-selectable input, ignore */ }
+      }
+    }
+  }
 }
 
 /* ============ INIT ============ */

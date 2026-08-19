@@ -11,7 +11,7 @@ router = APIRouter(prefix="/doctors", tags=["doctors"])
 def create_doctor(
     payload: schemas.DoctorCreate,
     db: Session = Depends(get_db),
-    user: models.User = Depends(auth.get_current_active_user),
+    user: models.User = Depends(auth.require_feature("receptionist_dashboard")),
 ):
     doctor = models.Doctor(clinic_id=user.clinic_id, **payload.dict())
     db.add(doctor)
@@ -23,7 +23,7 @@ def create_doctor(
 @router.get("", response_model=list[schemas.DoctorOut])
 def list_doctors(
     db: Session = Depends(get_db),
-    user: models.User = Depends(auth.get_current_active_user),
+    user: models.User = Depends(auth.require_feature("receptionist_dashboard")),
 ):
     return (
         db.query(models.Doctor)
@@ -38,7 +38,7 @@ def update_doctor(
     doctor_id: str,
     payload: schemas.DoctorUpdate,
     db: Session = Depends(get_db),
-    user: models.User = Depends(auth.get_current_active_user),
+    user: models.User = Depends(auth.require_feature("receptionist_dashboard")),
 ):
     doctor = db.query(models.Doctor).filter(
         models.Doctor.id == doctor_id, models.Doctor.clinic_id == user.clinic_id
@@ -56,7 +56,7 @@ def update_doctor(
 def deactivate_doctor(
     doctor_id: str,
     db: Session = Depends(get_db),
-    user: models.User = Depends(auth.get_current_active_user),
+    user: models.User = Depends(auth.require_feature("receptionist_dashboard")),
 ):
     doctor = db.query(models.Doctor).filter(
         models.Doctor.id == doctor_id, models.Doctor.clinic_id == user.clinic_id

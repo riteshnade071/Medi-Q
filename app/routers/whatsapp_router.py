@@ -16,7 +16,7 @@ def whatsapp_status(user: models.User = Depends(auth.get_current_active_user)):
 @router.get("/messages", response_model=list[schemas.WhatsAppMessageOut])
 def list_messages(
     db: Session = Depends(get_db),
-    user: models.User = Depends(auth.get_current_active_user),
+    user: models.User = Depends(auth.require_feature("notifications")),
 ):
     return (
         db.query(models.WhatsAppMessage)

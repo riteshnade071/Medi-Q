@@ -23,7 +23,7 @@ def _get_owned_doctor(db: Session, doctor_id: str, clinic_id: str) -> models.Doc
 def add_walkin(
     payload: schemas.WalkinCreate,
     db: Session = Depends(get_db),
-    user: models.User = Depends(auth.get_current_active_user),
+    user: models.User = Depends(auth.require_feature("walkin_management")),
 ):
     doctor = _get_owned_doctor(db, payload.doctor_id, user.clinic_id)
     settings = db.query(models.ClinicSettings).filter(models.ClinicSettings.clinic_id == user.clinic_id).first()
@@ -42,7 +42,7 @@ def add_walkin(
 def get_doctor_queue(
     doctor_id: str,
     db: Session = Depends(get_db),
-    user: models.User = Depends(auth.get_current_active_user),
+    user: models.User = Depends(auth.require_feature("queue_management")),
 ):
     doctor = _get_owned_doctor(db, doctor_id, user.clinic_id)
     today = date.today()
@@ -73,7 +73,7 @@ def get_doctor_queue(
 def call_next_patient(
     doctor_id: str,
     db: Session = Depends(get_db),
-    user: models.User = Depends(auth.get_current_active_user),
+    user: models.User = Depends(auth.require_feature("queue_management")),
 ):
     doctor = _get_owned_doctor(db, doctor_id, user.clinic_id)
     return queue_service.call_next(db, doctor, user_id=user.id)
@@ -83,7 +83,7 @@ def call_next_patient(
 def skip_current_patient(
     doctor_id: str,
     db: Session = Depends(get_db),
-    user: models.User = Depends(auth.get_current_active_user),
+    user: models.User = Depends(auth.require_feature("queue_management")),
 ):
     doctor = _get_owned_doctor(db, doctor_id, user.clinic_id)
     return queue_service.skip_current(db, doctor, user_id=user.id)
@@ -93,7 +93,7 @@ def skip_current_patient(
 def complete_current_patient(
     doctor_id: str,
     db: Session = Depends(get_db),
-    user: models.User = Depends(auth.get_current_active_user),
+    user: models.User = Depends(auth.require_feature("queue_management")),
 ):
     doctor = _get_owned_doctor(db, doctor_id, user.clinic_id)
     try:
@@ -106,7 +106,7 @@ def complete_current_patient(
 def recall_current_patient(
     doctor_id: str,
     db: Session = Depends(get_db),
-    user: models.User = Depends(auth.get_current_active_user),
+    user: models.User = Depends(auth.require_feature("queue_management")),
 ):
     doctor = _get_owned_doctor(db, doctor_id, user.clinic_id)
     try:
@@ -119,7 +119,7 @@ def recall_current_patient(
 def mark_token_no_show(
     token_id: str,
     db: Session = Depends(get_db),
-    user: models.User = Depends(auth.get_current_active_user),
+    user: models.User = Depends(auth.require_feature("queue_management")),
 ):
     token = db.query(models.Token).filter(
         models.Token.id == token_id, models.Token.clinic_id == user.clinic_id

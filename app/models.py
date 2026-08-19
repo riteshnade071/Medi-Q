@@ -30,13 +30,30 @@ class Clinic(Base):
     id = Column(String, primary_key=True, default=gen_uuid)
     name = Column(String, nullable=False)
     slug = Column(String, nullable=False, unique=True, index=True)  # used in public booking links
-    plan = Column(String, default="trial")  # trial, pro
-    subscription_status = Column(String, default="active")  # active, expired, cancelled
+    plan = Column(String, default="trial")  # trial, basic, pro, premium
+    # Raw/last-synced status. Do not read this directly to decide feature access —
+    # it is a cache written by subscription_service.sync_subscription_state();
+    # the source of truth is subscription_service.get_subscription_state(clinic),
+    # which recomputes live from the fields below on every check.
+    # Values: trialing, active, past_due, expired, cancelled, suspended
+    subscription_status = Column(String, default="trialing")
     trial_ends_at = Column(DateTime, default=lambda: datetime.utcnow() + timedelta(days=14))
     created_at = Column(DateTime, default=datetime.utcnow)
 
+    # ---- Billing / Razorpay (added for subscription system) ----
+    razorpay_customer_id = Column(String, nullable=True, index=True)
+    razorpay_subscription_id = Column(String, nullable=True, index=True)
+    subscription_started_at = Column(DateTime, nullable=True)
+    current_period_start = Column(DateTime, nullable=True)
+    current_period_end = Column(DateTime, nullable=True)
+    payment_status = Column(String, nullable=True)  # paid, failed, pending (last known payment attempt outcome)
+    last_payment_id = Column(String, nullable=True)
+    cancel_at_period_end = Column(Boolean, default=False)
+    grace_period_ends_at = Column(DateTime, nullable=True)  # set when a renewal charge fails (past_due)
+
     users = relationship("User", back_populates="clinic", cascade="all, delete-orphan")
     doctors = relationship("Doctor", back_populates="clinic", cascade="all, delete-orphan")
+    payments = relationship("Payment", back_populates="clinic", cascade="all, delete-orphan")
 
 
 class User(Base):
@@ -225,6 +242,29 @@ class FAQItem(Base):
     question = Column(String, nullable=False)
     answer = Column(String, nullable=False)
     sort_order = Column(Integer, default=0)
+
+
+class Payment(Base):
+    """One row per payment/subscription event verified from Razorpay (webhook or
+    server-side verification) — never trust-written from a frontend callback.
+    Amount is stored in paise (Razorpay's native unit, integer, no float
+    rounding issues); divide by 100 for display."""
+    __tablename__ = "payments"
+    id = Column(String, primary_key=True, default=gen_uuid)
+    clinic_id = Column(String, ForeignKey("clinics.id"), nullable=False, index=True)
+    razorpay_payment_id = Column(String, nullable=True, index=True)
+    razorpay_order_id = Column(String, nullable=True)
+    razorpay_subscription_id = Column(String, nullable=True, index=True)
+    amount = Column(Integer, nullable=True)  # paise
+    currency = Column(String, default="INR")
+    status = Column(String, nullable=False)  # captured, failed, refunded, etc.
+    plan = Column(String, nullable=True)
+    event_type = Column(String, nullable=True)  # razorpay event name, e.g. subscription.charged
+    razorpay_event_id = Column(String, nullable=True, unique=True, index=True)  # x-razorpay-event-id — dedupes webhook retries
+    paid_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    clinic = relationship("Clinic", back_populates="payments")
 
 
 class AuditLog(Base):

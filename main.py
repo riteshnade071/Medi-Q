@@ -1,11 +1,12 @@
 import os
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 
 from app.database import Base, engine, run_startup_migrations
 from app import models  # noqa: F401 (ensures models are registered before create_all)
+from app.services.subscription_service import SubscriptionRequiredException
 from app.routers import (
     auth_router, doctors_router, queue_router, public_router,
     billing_router, dashboard_router, patients_router, support_router,
@@ -23,6 +24,21 @@ if _migrated:
     print(f"[startup migration] added columns: {', '.join(_migrated)}")
 
 app = FastAPI(title="Clinic Queue API", version="1.0.0")
+
+
+@app.exception_handler(SubscriptionRequiredException)
+def handle_subscription_required(request: Request, exc: SubscriptionRequiredException):
+    # Centralized 402 shape — every paid-feature endpoint that gates via
+    # app.auth.require_feature() raises this and lands here, so the response
+    # body is always exactly this shape regardless of which route fired it.
+    return JSONResponse(
+        status_code=402,
+        content={
+            "detail": exc.message,
+            "code": "SUBSCRIPTION_REQUIRED",
+            "subscription_status": exc.subscription_status,
+        },
+    )
 
 # CORS_ORIGINS lets you restrict to a specific frontend domain (comma-separated)
 # once one exists separately from this app's own built-in static pages. Left

@@ -145,7 +145,10 @@ const state = {
   dashSummary: null,
 
   view: 'queue', // queue | doctors | billing | patients | support | settings
-  billing: null,
+  billing: null, plans: [], plansLoading: false,
+  payments: [], paymentsLoading: false,
+  subscribeLoadingPlan: null, subscribeError: '', confirmingPayment: false,
+  subscriptionLockOpen: false, subscriptionLockMessage: '', subscriptionLockStatus: '',
 
   walkinOpen: false, walkinName: '', walkinMobile: '', walkinSaving: false, walkinError: '',
   doctorFormOpen: false, doctorFormMode: 'add', doctorFormId: null,
@@ -192,9 +195,20 @@ async function api(path, {method='GET', body=null, auth=true} = {}){
   if (auth && state.token) headers['Authorization'] = 'Bearer ' + state.token;
   const res = await fetch(API_BASE + path, {method, headers, body: body ? JSON.stringify(body) : undefined});
   if (!res.ok){
-    let detail = 'Request failed';
-    try{ const j = await res.json(); detail = j.detail || detail; } catch(e){}
-    throw new Error(detail);
+    let detail = 'Request failed', code = null, subStatus = null;
+    try{ const j = await res.json(); detail = j.detail || detail; code = j.code || null; subStatus = j.subscription_status || null; } catch(e){}
+    const err = new Error(detail);
+    err.status = res.status; err.code = code; err.subscriptionStatus = subStatus;
+    // Any paid-feature call blocked by the backend (402 SUBSCRIPTION_REQUIRED)
+    // pops the same lock modal everywhere, instead of each call site having
+    // to know about billing state — the backend is the single source of truth.
+    if (res.status === 402 && code === 'SUBSCRIPTION_REQUIRED'){
+      state.subscriptionLockOpen = true;
+      state.subscriptionLockMessage = detail;
+      state.subscriptionLockStatus = subStatus;
+      render();
+    }
+    throw err;
   }
   if (res.status === 204) return null;
   return res.json();
@@ -244,13 +258,14 @@ function logout(){
 
 async function afterLogin(){
   await loadProfile();
+  await loadBilling();
   await loadDoctors();
   startPolling();
 }
 
 /* ============ DATA LOADING ============ */
 async function loadProfile(){
-  try{ state.profile = await api('/auth/me'); } catch(e){ if (String(e.message).includes('expired')||String(e.message).includes('cancelled')) state.profile=null; }
+  try{ state.profile = await api('/auth/me'); } catch(e){ state.profile = null; }
 }
 
 async function loadDoctors(){
@@ -276,6 +291,70 @@ async function loadDashboard(){
 async function loadBilling(){
   try{ state.billing = await api('/billing/status'); } catch(e){}
   render();
+}
+
+async function loadPlans(){
+  if (state.plans.length) return; // static config, fetch once per session
+  state.plansLoading = true; render();
+  try{ state.plans = await api('/billing/plans'); } catch(e){}
+  state.plansLoading = false; render();
+}
+
+async function loadPayments(){
+  state.paymentsLoading = true; render();
+  try{ state.payments = await api('/billing/payments'); } catch(e){}
+  state.paymentsLoading = false; render();
+}
+
+function loadRazorpayCheckout(){
+  if (window.Razorpay) return Promise.resolve();
+  return new Promise((resolve, reject)=>{
+    const s = document.createElement('script');
+    s.src = 'https://checkout.razorpay.com/v1/checkout.js';
+    s.onload = resolve; s.onerror = ()=> reject(new Error('Could not load payment gateway. Check your connection and try again.'));
+    document.head.appendChild(s);
+  });
+}
+
+async function subscribeToPlan(planKey){
+  state.subscribeLoadingPlan = planKey; state.subscribeError = ''; render();
+  try{
+    const sub = await api('/billing/subscribe', {method:'POST', body:{plan: planKey}});
+    await loadRazorpayCheckout();
+    const rzp = new Razorpay({
+      key: sub.razorpay_key_id,
+      subscription_id: sub.razorpay_subscription_id,
+      name: 'Qurely',
+      description: planKey.charAt(0).toUpperCase() + planKey.slice(1) + ' plan',
+      theme: { color: '#2dd4c8' },
+      // We never trust this handler as proof of payment — the backend only
+      // activates the subscription once Razorpay's webhook is verified
+      // server-side. This just tells us when to start polling for that.
+      handler: function(){ pollForActivation(); },
+      modal: { ondismiss: function(){ state.subscribeLoadingPlan = null; render(); } },
+    });
+    rzp.open();
+  } catch(e){
+    state.subscribeError = e.message;
+  }
+  state.subscribeLoadingPlan = null; render();
+}
+
+function pollForActivation(){
+  state.subscribeError = '';
+  state.confirmingPayment = true; render();
+  let attempts = 0;
+  const iv = setInterval(async ()=>{
+    attempts++;
+    await loadBilling();
+    const active = state.billing && (state.billing.subscription_status === 'active' || state.billing.subscription_status === 'past_due');
+    if (active || attempts >= 15){ // ~30s; webhooks normally land in a couple seconds
+      clearInterval(iv);
+      state.confirmingPayment = false;
+      await loadPayments();
+      render();
+    }
+  }, 2000);
 }
 
 async function loadPatients(){
@@ -339,6 +418,7 @@ function startPolling(){
   if (pollTimer) clearInterval(pollTimer);
   pollTimer = setInterval(()=>{
     if (!state.token) return;
+    if (state.subscriptionLockOpen) return; // no point hammering a gated endpoint
     if (state.view === 'queue') loadQueue();
   }, 8000);
 }
@@ -450,20 +530,31 @@ function renderAuth(){
   card.querySelector('#a-submit').addEventListener('click', ()=> state.authMode==='login' ? doLogin() : doSignup());
 }
 
+function renderTopBadge(){
+  if (!state.billing) return '';
+  const s = state.billing.subscription_status;
+  if (s === 'trialing') return `<div class="badge trial">${state.billing.trial_days_left ?? '—'}d left on trial</div>`;
+  if (s === 'active') return `<div class="badge live" style="text-transform:capitalize;">${escapeHtml(state.billing.plan)} · Active</div>`;
+  if (s === 'past_due') return `<div class="badge trial">Payment issue — grace period</div>`;
+  if (s === 'expired') return `<div class="badge" style="color:var(--coral);background:var(--coral-soft);border-color:rgba(255,107,107,.3);">Trial expired</div>`;
+  if (s === 'suspended') return `<div class="badge" style="color:var(--coral);background:var(--coral-soft);border-color:rgba(255,107,107,.3);">Subscription suspended</div>`;
+  if (s === 'cancelled') return `<div class="badge" style="color:var(--coral);background:var(--coral-soft);border-color:rgba(255,107,107,.3);">Subscription cancelled</div>`;
+  return '';
+}
+
 /* ============ RENDER: SHELL ============ */
 function renderShell(contentEl){
   const root = document.getElementById('root');
   root.innerHTML = '';
   const app = el(`<div class="app"></div>`);
 
-  const trialBadge = state.billing && state.billing.plan === 'trial'
-    ? `<div class="badge trial">${state.billing.trial_days_left ?? '—'}d left on trial</div>` : '';
+  const billingBadge = renderTopBadge();
 
   app.appendChild(el(`
     <div class="topbar">
       <div class="brand">${icon('logo')} Clinic Queue ${state.profile?`<span class="clinic-slug">${escapeHtml(state.profile.clinic_name)}</span>`:''}</div>
       <div class="top-right">
-        ${trialBadge}
+        ${billingBadge}
         <div class="badge live"><span class="dot"></span>LIVE</div>
         <button class="btn ghost sm" id="logout-btn">${icon('logout')} Log out</button>
       </div>
@@ -487,13 +578,39 @@ function renderShell(contentEl){
   app.querySelector('#logout-btn').addEventListener('click', logout);
   tabs.querySelectorAll('.tab').forEach(tb=> tb.addEventListener('click', ()=>{
     state.view = tb.dataset.view;
-    if (state.view === 'billing') loadBilling();
+    if (state.view === 'billing'){ loadBilling(); loadPlans(); loadPayments(); }
     if (state.view === 'queue') loadQueue();
     if (state.view === 'patients') loadPatients();
     if (state.view === 'support'){ loadTickets(); loadFAQ(); }
     if (state.view === 'settings') loadSettings();
     render();
   }));
+
+  if (state.subscriptionLockOpen) app.appendChild(renderSubscriptionLockModal());
+}
+
+function renderSubscriptionLockModal(){
+  const overlay = el(`
+    <div class="modal-bg">
+      <div class="modal" style="max-width:420px;text-align:center;">
+        <div style="width:52px;height:52px;border-radius:50%;background:var(--coral-soft);display:flex;align-items:center;justify-content:center;margin:0 auto 14px;">
+          ${icon('card')}
+        </div>
+        <h3 style="margin-bottom:8px;">Subscription required</h3>
+        <p style="color:var(--steel);font-size:13.5px;line-height:1.5;margin-bottom:18px;">${escapeHtml(state.subscriptionLockMessage || 'This feature requires an active Qurely subscription.')}</p>
+        <div class="modal-actions" style="justify-content:center;">
+          <button class="btn ghost sm" id="lock-dismiss">Not now</button>
+          <button class="btn primary" id="lock-subscribe">View plans</button>
+        </div>
+      </div>
+    </div>`);
+  overlay.querySelector('#lock-dismiss').addEventListener('click', ()=>{ state.subscriptionLockOpen = false; render(); });
+  overlay.querySelector('#lock-subscribe').addEventListener('click', ()=>{
+    state.subscriptionLockOpen = false; state.view = 'billing';
+    loadBilling(); loadPlans(); loadPayments();
+    render();
+  });
+  return overlay;
 }
 
 /* ============ RENDER: QUEUE ============ */
@@ -888,19 +1005,118 @@ function renderSettings(){
 function renderBilling(){
   const wrap = el(`<div></div>`);
   wrap.appendChild(el(`<div class="section-head" style="margin-top:0;"><h3>${icon('card')} Billing</h3></div>`));
-  const card = el(`<div class="card"></div>`);
-  if (state.billing){
-    card.appendChild(el(`
-      <div class="field"><label>Clinic</label><div style="font-weight:700;">${escapeHtml(state.billing.clinic_name)}</div></div>
-      <div class="field"><label>Plan</label><div style="font-weight:700;text-transform:capitalize;">${escapeHtml(state.billing.plan)}</div></div>
-      <div class="field"><label>Status</label><div style="font-weight:700;text-transform:capitalize;">${escapeHtml(state.billing.subscription_status)}</div></div>
-      ${state.billing.plan === 'trial' ? `<div class="field"><label>Trial days left</label><div style="font-weight:700;">${state.billing.trial_days_left}</div></div>` : ''}
-    `));
-  } else {
-    card.appendChild(el(`<div class="empty-state">Loading…</div>`));
+
+  if (!state.billing){
+    wrap.appendChild(el(`<div class="card"><div class="empty-state">Loading…</div></div>`));
+    renderShell(wrap); return;
   }
-  wrap.appendChild(card);
+
+  const b = state.billing;
+  const statusCard = el(`<div class="card" style="margin-bottom:16px;"></div>`);
+
+  if (state.confirmingPayment){
+    statusCard.appendChild(el(`
+      <div style="text-align:center;padding:10px 0;">
+        <div class="badge trial" style="margin-bottom:10px;">Confirming payment…</div>
+        <div style="color:var(--steel);font-size:13px;">This usually takes a few seconds while we verify the payment with Razorpay.</div>
+      </div>`));
+  } else if (b.subscription_status === 'trialing'){
+    statusCard.appendChild(el(`
+      <div class="badge trial" style="margin-bottom:10px;">FREE TRIAL</div>
+      <div style="font-family:'IBM Plex Mono',monospace;font-size:28px;font-weight:700;margin-bottom:4px;">${b.trial_days_left ?? '—'} days remaining</div>
+      <div style="color:var(--steel);font-size:13px;">All Qurely features are active during your trial. Choose a plan below any time — you won't be charged until your trial ends and you confirm payment.</div>
+    `));
+  } else if (b.subscription_status === 'active'){
+    const renewLine = b.current_period_end
+      ? `Renews: ${new Date(b.current_period_end).toLocaleDateString('en-IN', {day:'numeric', month:'short', year:'numeric'})}`
+      : '';
+    statusCard.appendChild(el(`
+      <div class="badge live" style="margin-bottom:10px;text-transform:uppercase;"><span class="dot"></span>${escapeHtml(b.plan)}</div>
+      <div style="font-family:'IBM Plex Mono',monospace;font-size:20px;font-weight:700;margin-bottom:4px;">Active</div>
+      ${renewLine ? `<div style="color:var(--steel);font-size:13px;">${renewLine}</div>` : ''}
+    `));
+  } else if (b.subscription_status === 'past_due'){
+    statusCard.appendChild(el(`
+      <div class="badge trial" style="margin-bottom:10px;">PAYMENT ISSUE</div>
+      <div style="font-family:'IBM Plex Mono',monospace;font-size:20px;font-weight:700;margin-bottom:4px;">Renewal payment failed</div>
+      <div style="color:var(--steel);font-size:13px;">We couldn't renew your ${escapeHtml(b.plan)} plan. Your access stays on for a few more days while Razorpay retries — update your payment method to avoid interruption.</div>
+    `));
+  } else if (b.subscription_status === 'suspended'){
+    statusCard.appendChild(el(`
+      <div class="badge" style="color:var(--coral);background:var(--coral-soft);border-color:rgba(255,107,107,.3);margin-bottom:10px;">SUSPENDED</div>
+      <div style="font-family:'IBM Plex Mono',monospace;font-size:20px;font-weight:700;margin-bottom:4px;">Subscribe to continue using Qurely</div>
+      <div style="color:var(--steel);font-size:13px;">Renewal payments failed and the grace period has ended. Your clinic's data is safe — resubscribe below to unlock paid features again immediately.</div>
+    `));
+  } else if (b.subscription_status === 'cancelled'){
+    statusCard.appendChild(el(`
+      <div class="badge" style="color:var(--coral);background:var(--coral-soft);border-color:rgba(255,107,107,.3);margin-bottom:10px;">CANCELLED</div>
+      <div style="font-family:'IBM Plex Mono',monospace;font-size:20px;font-weight:700;margin-bottom:4px;">Your subscription was cancelled</div>
+      <div style="color:var(--steel);font-size:13px;">Subscribe again any time — your clinic's data hasn't gone anywhere.</div>
+    `));
+  } else { // expired
+    statusCard.appendChild(el(`
+      <div class="badge" style="color:var(--coral);background:var(--coral-soft);border-color:rgba(255,107,107,.3);margin-bottom:10px;">TRIAL EXPIRED</div>
+      <div style="font-family:'IBM Plex Mono',monospace;font-size:20px;font-weight:700;margin-bottom:4px;">Your free trial has ended</div>
+      <div style="color:var(--steel);font-size:13px;">Subscribe to continue using Qurely. Nothing has been deleted — your queue, doctors, and patient history are all exactly as you left them.</div>
+    `));
+  }
+  wrap.appendChild(statusCard);
+
+  // ---- Plans ----
+  wrap.appendChild(el(`<div class="section-head"><h3>Plans</h3></div>`));
+  if (state.subscribeError) wrap.appendChild(el(`<div class="err-msg" style="margin-bottom:12px;">${escapeHtml(state.subscribeError)}</div>`));
+
+  const grid = el(`<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;"></div>`);
+  if (state.plansLoading && !state.plans.length){
+    grid.appendChild(el(`<div class="empty-state">Loading plans…</div>`));
+  } else {
+    state.plans.forEach(p=>{
+      const isCurrent = (b.subscription_status === 'active' || b.subscription_status === 'past_due') && b.plan === p.key;
+      const loading = state.subscribeLoadingPlan === p.key;
+      const card = el(`
+        <div class="card" style="${isCurrent ? 'border-color:var(--teal);' : ''}">
+          <div style="font-weight:700;font-family:'IBM Plex Mono',monospace;font-size:15px;margin-bottom:6px;text-transform:uppercase;letter-spacing:.03em;">${escapeHtml(p.name)}</div>
+          <div style="font-size:26px;font-weight:700;margin-bottom:2px;">₹${p.price_inr}<span style="font-size:12px;color:var(--steel);font-weight:400;">/${escapeHtml(p.interval)}</span></div>
+          <ul style="margin:12px 0 16px;padding-left:18px;color:var(--steel);font-size:12.5px;line-height:1.9;">
+            ${p.features.map(f=>`<li>${escapeHtml(f.replace(/_/g,' '))}</li>`).join('')}
+          </ul>
+          <button class="btn ${isCurrent ? 'ghost' : 'primary'} sm" style="width:100%;justify-content:center;" data-plan="${p.key}" ${isCurrent||loading?'disabled':''}>
+            ${isCurrent ? 'Current plan' : (loading ? 'Opening checkout…' : 'Subscribe')}
+          </button>
+        </div>`);
+      grid.appendChild(card);
+    });
+  }
+  wrap.appendChild(grid);
+
+  // ---- Payment history ----
+  wrap.appendChild(el(`<div class="section-head"><h3>Payment history</h3></div>`));
+  const payCard = el(`<div class="card"></div>`);
+  if (state.paymentsLoading){
+    payCard.appendChild(el(`<div class="empty-state">Loading…</div>`));
+  } else if (!state.payments.length){
+    payCard.appendChild(el(`<div class="empty-state">No payments yet.</div>`));
+  } else {
+    const list = el(`<div></div>`);
+    state.payments.forEach(p=>{
+      const amt = p.amount != null ? `₹${(p.amount/100).toFixed(2)}` : '—';
+      const when = p.paid_at || p.created_at;
+      list.appendChild(el(`
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--line);">
+          <div>
+            <div style="font-weight:600;text-transform:capitalize;">${escapeHtml(p.plan || '—')} · ${escapeHtml((p.event_type||p.status||'').replace(/_/g,' '))}</div>
+            <div style="color:var(--steel);font-size:12px;">${when ? new Date(when).toLocaleString('en-IN') : ''}</div>
+          </div>
+          <div style="font-weight:700;">${amt}</div>
+        </div>`));
+    });
+    payCard.appendChild(list);
+  }
+  wrap.appendChild(payCard);
+
   renderShell(wrap);
+
+  wrap.querySelectorAll('[data-plan]').forEach(btn=> btn.addEventListener('click', ()=> subscribeToPlan(btn.dataset.plan)));
 }
 
 /* ============ ROOT RENDER ============ */

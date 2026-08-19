@@ -6,6 +6,7 @@ from .. import models, schemas, auth
 from ..database import get_db
 from ..services import queue as queue_service
 from ..services.queue import QueueError
+from ..services import subscription_service
 
 router = APIRouter(prefix="/public", tags=["public"])
 
@@ -40,6 +41,15 @@ def book_token(payload: schemas.BookingCreate, request: Request, db: Session = D
         raise HTTPException(status_code=404, detail="Doctor not found")
     if not payload.patient_name or not payload.patient_name.strip():
         raise HTTPException(status_code=400, detail="Patient name is required")
+
+    clinic_for_check = db.query(models.Clinic).filter(models.Clinic.id == doctor.clinic_id).first()
+    if clinic_for_check:
+        state = subscription_service.sync_subscription_state(db, clinic_for_check)
+        if not subscription_service.has_feature_access(clinic_for_check, "online_booking"):
+            # Existing tokens/queue data stay fully intact and viewable — only
+            # *new* bookings are blocked, and the message is generic so we
+            # don't leak the clinic's private billing status to the public.
+            raise HTTPException(status_code=503, detail="Online booking is temporarily unavailable. Please contact the clinic.")
 
     settings = db.query(models.ClinicSettings).filter(models.ClinicSettings.clinic_id == doctor.clinic_id).first()
     if settings and not settings.online_booking_enabled:

@@ -13,7 +13,7 @@ router = APIRouter(prefix="/patients", tags=["patients"])
 def list_patients(
     q: Optional[str] = Query(None, description="Search by name or mobile"),
     db: Session = Depends(get_db),
-    user: models.User = Depends(auth.get_current_active_user),
+    user: models.User = Depends(auth.require_feature("patient_registry")),
 ):
     return patients_service.search_patients(db, user.clinic_id, q)
 
@@ -22,7 +22,7 @@ def list_patients(
 def get_patient(
     patient_id: str,
     db: Session = Depends(get_db),
-    user: models.User = Depends(auth.get_current_active_user),
+    user: models.User = Depends(auth.require_feature("patient_registry")),
 ):
     patient = db.query(models.Patient).filter(
         models.Patient.id == patient_id, models.Patient.clinic_id == user.clinic_id

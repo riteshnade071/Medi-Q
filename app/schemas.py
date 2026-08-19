@@ -233,6 +233,52 @@ class ClinicSettingsUpdate(BaseModel):
     support_email: Optional[str] = None
 
 
+# ---------- Billing ----------
+class PlanOut(BaseModel):
+    key: str
+    name: str
+    price_inr: int
+    interval: str
+    features: List[str]
+
+
+class BillingStatusOut(BaseModel):
+    clinic_name: str
+    clinic_slug: str
+    plan: str
+    subscription_status: str
+    trial_ends_at: Optional[datetime] = None
+    trial_days_left: Optional[int] = None
+    current_period_end: Optional[datetime] = None
+    cancel_at_period_end: bool = False
+    payment_status: Optional[str] = None
+
+
+class SubscribeRequest(BaseModel):
+    plan: str
+
+
+class SubscribeResponse(BaseModel):
+    razorpay_subscription_id: str
+    razorpay_key_id: str
+    plan: str
+    status: str
+
+
+class PaymentOut(BaseModel):
+    id: str
+    amount: Optional[int] = None
+    currency: str
+    status: str
+    plan: Optional[str] = None
+    event_type: Optional[str] = None
+    paid_at: Optional[datetime] = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
 # ---------- Dashboard ----------
 class DoctorDaySummary(BaseModel):
     doctor_id: str

@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 
 from .database import get_db, IS_SQLITE
 from . import models
+from .services import subscription_service
 
 _DEV_DEFAULT_SECRET = "dev-secret-change-me"
 SECRET_KEY = os.getenv("JWT_SECRET", _DEV_DEFAULT_SECRET)
@@ -101,20 +102,42 @@ def enforce_rate_limit(key: str, max_requests: int, window_seconds: int) -> None
 
 
 def get_current_active_user(user: models.User = Depends(get_current_user), db: Session = Depends(get_db)) -> models.User:
-    """Blocks clinics with an expired/cancelled subscription from mutating data,
-    while keeping account/billing endpoints reachable so a locked-out clinic can
-    still see why and how to fix it."""
+    """Confirms the user's clinic still exists. Deliberately does NOT gate on
+    subscription state — account/profile/billing/settings/support endpoints
+    must stay reachable for an expired clinic (spec: they need to be able to
+    log in and pay). Paid-feature endpoints add `Depends(require_feature(...))`
+    on top of this instead of duplicating trial/subscription logic per-router."""
     clinic = db.query(models.Clinic).filter(models.Clinic.id == user.clinic_id).first()
     if clinic is None:
         raise HTTPException(status_code=401, detail="Clinic not found")
-
-    if clinic.subscription_status == "cancelled":
-        raise HTTPException(status_code=402, detail="Subscription cancelled. Contact support to reactivate.")
-
-    if clinic.plan == "trial" and clinic.trial_ends_at and datetime.utcnow() > clinic.trial_ends_at:
-        if clinic.subscription_status != "expired":
-            clinic.subscription_status = "expired"
-            db.commit()
-        raise HTTPException(status_code=402, detail="Trial expired. Upgrade to keep using the queue system.")
-
     return user
+
+
+def get_current_clinic(user: models.User = Depends(get_current_active_user), db: Session = Depends(get_db)) -> models.Clinic:
+    clinic = db.query(models.Clinic).filter(models.Clinic.id == user.clinic_id).first()
+    if clinic is None:
+        raise HTTPException(status_code=401, detail="Clinic not found")
+    return clinic
+
+
+def require_feature(feature_name: str):
+    """Dependency factory: gates a route on centralized subscription/feature
+    access (app/services/subscription_service.py is the source of truth).
+    Returns the User (like get_current_active_user) so existing route
+    signatures don't need to change shape — just swap the Depends() call."""
+
+    def _dependency(
+        user: models.User = Depends(get_current_active_user),
+        db: Session = Depends(get_db),
+    ) -> models.User:
+        clinic = db.query(models.Clinic).filter(models.Clinic.id == user.clinic_id).first()
+        if clinic is None:
+            raise HTTPException(status_code=401, detail="Clinic not found")
+        state = subscription_service.sync_subscription_state(db, clinic)
+        if not subscription_service.has_feature_access(clinic, feature_name):
+            raise subscription_service.SubscriptionRequiredException(
+                subscription_service.not_subscribed_message(state), state
+            )
+        return user
+
+    return _dependency

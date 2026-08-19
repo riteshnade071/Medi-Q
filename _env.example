@@ -27,3 +27,20 @@ QUEUE_NOW_THRESHOLD=1
 # Optional — where Help & Support ticket notifications are emailed. Falls back
 # to this default if unset; a clinic can also override it per-clinic in Settings.
 SUPPORT_EMAIL=zalteom111@gmail.com
+
+# ---- Razorpay billing (required for the subscription/paywall system) ----
+# API keys: Razorpay Dashboard -> Settings -> API Keys.
+RAZORPAY_KEY_ID=
+RAZORPAY_KEY_SECRET=
+# Webhook secret: Dashboard -> Settings -> Webhooks -> Add New Webhook.
+# This is a value YOU choose when creating the webhook, not one Razorpay
+# generates for you — pick a long random string and use the same one here.
+RAZORPAY_WEBHOOK_SECRET=
+# Plan IDs: Dashboard -> Subscriptions -> Plans -> Create Plan (one per tier
+# below, monthly billing). Copy each plan_xxxxxxxxxxxx id here.
+RAZORPAY_BASIC_PLAN_ID=
+RAZORPAY_PRO_PLAN_ID=
+RAZORPAY_PREMIUM_PLAN_ID=
+# How many days a clinic keeps paid access after a recurring charge fails,
+# before being moved to `suspended`.
+SUBSCRIPTION_GRACE_PERIOD_DAYS=3

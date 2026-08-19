@@ -53,6 +53,20 @@ _REQUIRED_COLUMNS = {
         ("patient_id", "VARCHAR"),
         ("checked_in_at", "TIMESTAMP"),
     ],
+    # Subscription/billing fields added to the existing `clinics` table for the
+    # trial + Razorpay subscription system. `payments` is a brand-new table so
+    # create_all() alone handles it — no migration entry needed for it here.
+    "clinics": [
+        ("razorpay_customer_id", "VARCHAR"),
+        ("razorpay_subscription_id", "VARCHAR"),
+        ("subscription_started_at", "TIMESTAMP"),
+        ("current_period_start", "TIMESTAMP"),
+        ("current_period_end", "TIMESTAMP"),
+        ("payment_status", "VARCHAR"),
+        ("last_payment_id", "VARCHAR"),
+        ("cancel_at_period_end", "BOOLEAN DEFAULT FALSE"),
+        ("grace_period_ends_at", "TIMESTAMP"),
+    ],
 }
 
 

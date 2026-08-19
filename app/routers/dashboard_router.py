@@ -9,5 +9,5 @@ router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
 
 @router.get("/summary", response_model=schemas.DashboardSummary)
-def get_dashboard_summary(db: Session = Depends(get_db), user: models.User = Depends(auth.get_current_active_user)):
+def get_dashboard_summary(db: Session = Depends(get_db), user: models.User = Depends(auth.require_feature("analytics"))):
     return analytics.dashboard_summary(db, user.clinic_id)

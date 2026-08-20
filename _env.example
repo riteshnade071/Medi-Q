@@ -36,11 +36,9 @@ RAZORPAY_KEY_SECRET=
 # This is a value YOU choose when creating the webhook, not one Razorpay
 # generates for you — pick a long random string and use the same one here.
 RAZORPAY_WEBHOOK_SECRET=
-# Plan IDs: Dashboard -> Subscriptions -> Plans -> Create Plan (one per tier
-# below, monthly billing). Copy each plan_xxxxxxxxxxxx id here.
-RAZORPAY_BASIC_PLAN_ID=
+# Plan ID: Dashboard -> Subscriptions -> Plans -> Create Plan (monthly
+# billing). Copy the plan_xxxxxxxxxxxx id here.
 RAZORPAY_PRO_PLAN_ID=
-RAZORPAY_PREMIUM_PLAN_ID=
 # How many days a clinic keeps paid access after a recurring charge fails,
 # before being moved to `suspended`.
 SUBSCRIPTION_GRACE_PERIOD_DAYS=3

@@ -15,7 +15,7 @@ os.environ["DATABASE_URL"] = "sqlite:///./smoke_test_billing.db"
 os.environ["RAZORPAY_KEY_ID"] = "rzp_test_dummykey"
 os.environ["RAZORPAY_KEY_SECRET"] = "dummy_key_secret"
 os.environ["RAZORPAY_WEBHOOK_SECRET"] = "whsec_test_dummy_secret"
-os.environ["RAZORPAY_BASIC_PLAN_ID"] = "plan_dummybasic000"
+os.environ["RAZORPAY_PRO_PLAN_ID"] = "plan_dummypro000"
 os.environ["SUBSCRIPTION_GRACE_PERIOD_DAYS"] = "3"
 
 import sys
@@ -47,7 +47,7 @@ def sign(body_bytes: bytes, secret: str) -> str:
     return hmac.new(secret.encode(), body_bytes, hashlib.sha256).hexdigest()
 
 
-def webhook_body(event_type, subscription_id, payment_id=None, current_start=None, current_end=None, amount=49900):
+def webhook_body(event_type, subscription_id, payment_id=None, current_start=None, current_end=None, amount=99900):
     payload = {}
     if subscription_id:
         payload["subscription"] = {
@@ -133,7 +133,7 @@ def main():
     r = client.get("/auth/me", headers=h)
     check("expired clinic can view profile", r.status_code == 200)
     r = client.get("/billing/plans", headers=h)
-    check("expired clinic can view plans", r.status_code == 200 and len(r.json()) == 3)
+    check("expired clinic can view plans", r.status_code == 200 and len(r.json()) == 1)
 
     # Existing patient-facing booking link must still say "unavailable", not 500/expose data
     r = client.post("/public/book", json={"doctor_id": doctor_id, "patient_name": "Walk-in Patient"})
@@ -144,7 +144,7 @@ def main():
     db = db_session()
     clinic = db.query(models.Clinic).filter(models.Clinic.id == clinic_id).first()
     clinic.razorpay_subscription_id = fake_sub_id
-    clinic.plan = "basic"
+    clinic.plan = "pro"
     db.commit()
     db.close()
 

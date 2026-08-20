@@ -1,16 +1,19 @@
 """
-Single source of truth for Qurely's paid plans.
+Single source of truth for Qurely's paid plan.
 
-Prices/features here are NOT final — change them in this one place only.
-Each plan's `razorpay_plan_id_env` points at the env var holding the actual
-Razorpay Plan ID (created on the Razorpay Dashboard/API) for that plan; see
-README/_env.example for setup instructions.
+Price/features here are NOT final — change them in this one place only.
+`razorpay_plan_id_env` points at the env var holding the actual Razorpay
+Plan ID (created on the Razorpay Dashboard/API); see README/_env.example.
+
+NOTE: Qurely currently sells one plan. The structure is still a dict of
+plans (not a single flat config) so adding a second tier later is just
+adding another entry here — no other code needs to change.
 """
 import os
 
-# The full set of features that require a non-trial, active-or-grace
-# subscription. Anything not in this set is never gated (e.g. login, profile,
-# billing pages, settings, support).
+# The full set of features that require an active (non-trial-expired)
+# subscription. Anything not in this set is never gated (e.g. login,
+# profile, billing pages, settings, support).
 PAID_FEATURES = {
     "online_booking",
     "live_queue",
@@ -24,40 +27,11 @@ PAID_FEATURES = {
 }
 
 PLANS = {
-    "basic": {
-        "name": "Basic",
-        "price_inr": 499,
-        "interval": "monthly",
-        "razorpay_plan_id_env": "RAZORPAY_BASIC_PLAN_ID",
-        "features": [
-            "online_booking",
-            "queue_management",
-            "walkin_management",
-            "receptionist_dashboard",
-            "patient_registry",
-        ],
-    },
     "pro": {
         "name": "Pro",
         "price_inr": 999,
         "interval": "monthly",
         "razorpay_plan_id_env": "RAZORPAY_PRO_PLAN_ID",
-        "features": [
-            "online_booking",
-            "queue_management",
-            "walkin_management",
-            "receptionist_dashboard",
-            "patient_registry",
-            "live_queue",
-            "notifications",
-            "doctor_dashboard",
-        ],
-    },
-    "premium": {
-        "name": "Premium",
-        "price_inr": 1999,
-        "interval": "monthly",
-        "razorpay_plan_id_env": "RAZORPAY_PREMIUM_PLAN_ID",
         "features": [
             "online_booking",
             "queue_management",

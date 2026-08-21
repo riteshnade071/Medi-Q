@@ -86,7 +86,7 @@ def has_feature_access(clinic: models.Clinic, feature_name: str | None = None) -
         return True
     if state == TRIALING:
         # Full access to every paid feature during the trial (spec: "During
-        # the trial, all Qurely services are active").
+        # the trial, all Clinic Queue services are active").
         return True
     plan = PLANS.get(clinic.plan)
     if not plan:
@@ -105,9 +105,9 @@ def start_grace_period(clinic: models.Clinic) -> None:
 
 def not_subscribed_message(state: str) -> str:
     if state == EXPIRED:
-        return "Your Qurely trial has expired. Please subscribe to continue."
+        return "Your Clinic Queue trial has expired. Please subscribe to continue."
     if state == SUSPENDED:
         return "Your subscription payment could not be renewed. Please update your payment method to continue."
     if state == CANCELLED:
         return "Your subscription has been cancelled. Subscribe again to continue."
-    return "This feature requires an active Qurely subscription."
+    return "This feature requires an active Clinic Queue subscription."

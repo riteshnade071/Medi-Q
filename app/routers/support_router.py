@@ -79,7 +79,7 @@ def create_ticket(
         f"{payload.description}\n\n"
         f"Submitted: {ticket.created_at.isoformat()}"
     )
-    sent, _error = notifications.send_email(support_email, f"[Qurely Support] {payload.subject}", body)
+    sent, _error = notifications.send_email(support_email, f"[Clinic Queue Support] {payload.subject}", body)
     if sent:
         ticket.email_notified = True
         db.commit()

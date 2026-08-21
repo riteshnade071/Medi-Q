@@ -1,11 +1,11 @@
 """
-Single source of truth for Qurely's paid plan.
+Single source of truth for Clinic Queue's paid plan.
 
 Price/features here are NOT final — change them in this one place only.
 `razorpay_plan_id_env` points at the env var holding the actual Razorpay
 Plan ID (created on the Razorpay Dashboard/API); see README/_env.example.
 
-NOTE: Qurely currently sells one plan. The structure is still a dict of
+NOTE: Clinic Queue currently sells one plan. The structure is still a dict of
 plans (not a single flat config) so adding a second tier later is just
 adding another entry here — no other code needs to change.
 """

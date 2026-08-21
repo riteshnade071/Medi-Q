@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Clinic Queue</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0a0f16; --panel:#0f1620; --panel2:#121a26; --line:rgba(255,255,255,.08);
+    --text:#eef3f8; --steel:#8494a6;
+    --teal:#2dd4c8; --teal-soft:rgba(45,212,200,.13);
+    --amber:#f5a524; --amber-soft:rgba(245,165,36,.14);
+    --coral:#ff6b6b; --coral-soft:rgba(255,107,107,.14);
+    --radius:16px;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:radial-gradient(1200px 800px at 50% -10%, #0d2a28 0%, transparent 60%), var(--bg);
+    color:var(--text);font-family:'Inter',sans-serif;min-height:100vh;}
+  h1,h2,h3{font-family:'IBM Plex Mono',monospace;margin:0;letter-spacing:-.02em;}
+  .wrap{max-width:480px;margin:0 auto;padding:36px 20px 60px;}
+  .wrap.board{max-width:640px;}
+  .logo{display:flex;align-items:center;gap:9px;justify-content:center;margin-bottom:26px;color:var(--steel);font-size:13px;font-weight:600;}
+  .logo svg{width:20px;height:20px;stroke:var(--teal);fill:none;stroke-width:2;}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:26px;margin-bottom:16px;}
+  .clinic-name{font-size:20px;font-weight:800;text-align:center;margin-bottom:4px;}
+  .doctor-name{text-align:center;color:var(--steel);font-size:13px;margin-bottom:20px;}
+  .doc-btn{display:block;width:100%;text-align:left;padding:14px 16px;border-radius:11px;border:1px solid var(--line);
+    background:var(--panel2);color:var(--text);margin-bottom:10px;cursor:pointer;font-size:14px;font-weight:600;}
+  .doc-btn:hover{border-color:var(--teal);}
+  .doc-btn .spec{display:block;font-size:12px;color:var(--steel);font-weight:400;margin-top:2px;}
+  .field{margin-bottom:14px;}
+  .field label{display:block;font-size:12px;color:var(--steel);margin-bottom:6px;font-weight:600;}
+  input[type=text],input[type=tel]{width:100%;padding:12px 14px;border-radius:10px;border:1px solid var(--line);
+    background:var(--panel2);color:var(--text);font-size:14px;}
+  input:focus{outline:none;border-color:var(--teal);}
+  .btn{width:100%;padding:13px;border-radius:11px;border:none;background:var(--teal);color:#04211d;font-size:14px;
+    font-weight:700;cursor:pointer;margin-top:6px;}
+  .btn:disabled{opacity:.5;}
+  .btn.ghost{background:transparent;border:1px solid var(--line);color:var(--text);}
+  .err-msg{color:var(--coral);font-size:12.5px;margin-top:8px;text-align:center;}
+  .token-display{text-align:center;padding:10px 0 4px;}
+  .token-num{font-family:'IBM Plex Mono',monospace;font-size:56px;font-weight:700;color:var(--teal);line-height:1;}
+  .token-label{font-size:11px;color:var(--steel);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px;}
+  .status-row{display:flex;justify-content:space-around;text-align:center;margin-top:20px;padding-top:18px;border-top:1px solid var(--line);}
+  .status-row div{flex:1;}
+  .status-row .n{font-family:'IBM Plex Mono',monospace;font-size:22px;font-weight:700;}
+  .status-row .l{font-size:10.5px;color:var(--steel);text-transform:uppercase;letter-spacing:.05em;margin-top:2px;}
+  .alert-banner{margin-top:16px;padding:12px 14px;border-radius:10px;text-align:center;font-size:13px;font-weight:700;}
+  .alert-banner.now{background:var(--coral-soft);color:var(--coral);border:1px solid rgba(255,107,107,.35);}
+  .alert-banner.soon{background:var(--amber-soft);color:var(--amber);border:1px solid rgba(245,165,36,.35);}
+  .board-serving{text-align:center;padding:30px 10px;}
+  .board-serving .n{font-family:'IBM Plex Mono',monospace;font-size:96px;font-weight:800;color:var(--teal);line-height:1;}
+  .board-serving .l{font-size:12px;color:var(--steel);text-transform:uppercase;letter-spacing:.1em;margin-top:10px;}
+  .waiting-pill{text-align:center;color:var(--steel);font-size:13px;margin-top:6px;}
+  .updated{text-align:center;color:var(--steel);font-size:11px;margin-top:16px;}
+  .link{color:var(--teal);text-decoration:none;font-weight:600;font-size:13px;}
+  .center{text-align:center;}
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script>
+const API_BASE = "";
+
+const path = location.pathname; // /book/{slug} or /q/{doctorId}
+let MODE = 'book';
+let SLUG = null, DOCTOR_ID = null;
+
+const bookMatch = path.match(/^\/book\/([^/]+)/);
+const qMatch = path.match(/^\/q\/([^/]+)/);
+if (bookMatch){ MODE = 'book'; SLUG = decodeURIComponent(bookMatch[1]); }
+else if (qMatch){ MODE = 'board'; DOCTOR_ID = decodeURIComponent(qMatch[1]); }
+
+const params = new URLSearchParams(location.search);
+const savedCode = params.get('code') || sessionStorage.getItem('cq_last_booking');
+
+const state = {
+  step: 'pick-doctor', // pick-doctor | form | confirmed
+  doctors: [], doctorsLoading: true, doctorsError: '',
+  selectedDoctor: null,
+  patientName: '', patientMobile: '',
+  booking: null, bookingLoading: false, bookingError: '',
+  status: null,
+  board: null, boardLoading: true, boardError: '',
+  cancelling: false, cancelError: '',
+};
+
+function el(html){ const t = document.createElement('template'); t.innerHTML = html.trim(); return t.content.firstElementChild; }
+function escapeHtml(s){ return String(s==null?'':s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function icon(){ return `<svg viewBox="0 0 24 24"><path d="M12 2l8 4v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V6l8-4z"/><path d="M9 12l2 2 4-4"/></svg>`; }
+
+async function api(path){
+  const res = await fetch(API_BASE + path);
+  if (!res.ok){ let d='Request failed'; try{ d=(await res.json()).detail||d; }catch(e){} throw new Error(d); }
+  return res.json();
+}
+async function apiPost(path, body){
+  const res = await fetch(API_BASE + path, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)});
+  if (!res.ok){ let d='Request failed'; try{ d=(await res.json()).detail||d; }catch(e){} throw new Error(d); }
+  return res.json();
+}
+async function apiPostEmpty(path){
+  const res = await fetch(API_BASE + path, {method:'POST'});
+  if (!res.ok){ let d='Request failed'; try{ d=(await res.json()).detail||d; }catch(e){} throw new Error(d); }
+  return res.json();
+}
+
+/* ============ BOOKING FLOW ============ */
+async function loadDoctorsForSlug(){
+  state.doctorsLoading = true; render();
+  try{ state.doctors = await api('/public/clinic/' + encodeURIComponent(SLUG) + '/doctors'); }
+  catch(e){ state.doctorsError = e.message; }
+  state.doctorsLoading = false; render();
+}
+
+function pickDoctor(doc){
+  state.selectedDoctor = doc; state.step = 'form'; render();
+}
+
+async function submitBooking(){
+  if (!state.patientName.trim()){ state.bookingError = 'Please enter your name'; render(); return; }
+  state.bookingLoading = true; state.bookingError = ''; render();
+  try{
+    const data = await apiPost('/public/book', {
+      doctor_id: state.selectedDoctor.id, patient_name: state.patientName.trim(), patient_mobile: state.patientMobile || null,
+    });
+    state.booking = data; state.step = 'confirmed';
+    sessionStorage.setItem('cq_last_booking', data.public_code);
+    // So a page refresh (or a copied/bookmarked URL) can restore this booking
+    // instead of dropping the patient back at the doctor-picker screen.
+    history.replaceState(null, '', location.pathname + '?code=' + encodeURIComponent(data.public_code));
+    startStatusPolling(data.public_code);
+  } catch(e){ state.bookingError = e.message; }
+  state.bookingLoading = false; render();
+}
+
+async function restoreBooking(code){
+  try{
+    const s = await api('/public/status/' + code);
+    state.booking = {
+      public_code: code,
+      token_number: s.token_number,
+      clinic_name: s.clinic_name,
+      doctor_name: s.doctor_name,
+      ahead_count: s.ahead_count,
+      estimated_wait_minutes: s.estimated_wait_minutes,
+      current_serving: s.current_serving,
+    };
+    state.status = s;
+    state.step = 'confirmed';
+    render();
+    startStatusPolling(code);
+  } catch(e){
+    // Stale/invalid code (e.g. from a previous day) — fall back to a fresh booking flow.
+    sessionStorage.removeItem('cq_last_booking');
+    history.replaceState(null, '', location.pathname);
+    loadDoctorsForSlug();
+  }
+}
+
+let statusTimer = null;
+function startStatusPolling(code){
+  refreshStatus(code);
+  if (statusTimer) clearInterval(statusTimer);
+  statusTimer = setInterval(()=> refreshStatus(code), 7000);
+}
+async function refreshStatus(code){
+  try{
+    state.status = await api('/public/status/' + code);
+    render();
+    const terminal = ['DONE', 'CANCELLED', 'NO_SHOW'];
+    if (terminal.includes(state.status.status) && statusTimer){ clearInterval(statusTimer); statusTimer = null; }
+  } catch(e){}
+}
+
+async function cancelBooking(){
+  if (state.cancelling) return; // prevent double-submit
+  if (!confirm('Cancel your token? This cannot be undone.')) return;
+  state.cancelling = true; state.cancelError = ''; render();
+  try{
+    const code = state.booking.public_code;
+    state.status = await apiPostEmpty('/public/cancel/' + code);
+    if (statusTimer) clearInterval(statusTimer);
+  } catch(e){ state.cancelError = e.message; }
+  state.cancelling = false; render();
+}
+
+/* ============ BOARD (live queue display) ============ */
+async function loadBoard(){
+  try{ state.board = await api('/public/queue/' + DOCTOR_ID); }
+  catch(e){ state.boardError = e.message; }
+  state.boardLoading = false; render();
+}
+function startBoardPolling(){
+  loadBoard();
+  setInterval(loadBoard, 6000);
+}
+
+/* ============ RENDER ============ */
+function shell(inner){
+  const root = document.getElementById('root');
+  root.innerHTML = '';
+  const wrap = el(`<div class="wrap${MODE==='board'?' board':''}"></div>`);
+  wrap.appendChild(el(`<div class="logo">${icon()} Clinic Queue</div>`));
+  wrap.appendChild(inner);
+  root.appendChild(wrap);
+}
+
+function renderPickDoctor(){
+  const card = el(`<div class="card"></div>`);
+  card.appendChild(el(`<div class="clinic-name">${state.doctors[0] ? escapeHtml(state.doctors[0].clinic_name) : 'Book a token'}</div>`));
+  card.appendChild(el(`<div class="doctor-name">Select a doctor to book your token</div>`));
+  if (state.doctorsLoading){
+    card.appendChild(el(`<div class="center" style="color:var(--steel);padding:20px 0;">Loading doctors…</div>`));
+  } else if (state.doctorsError){
+    card.appendChild(el(`<div class="err-msg">${escapeHtml(state.doctorsError)}</div>`));
+  } else if (!state.doctors.length){
+    card.appendChild(el(`<div class="center" style="color:var(--steel);padding:20px 0;">No doctors available right now.</div>`));
+  } else {
+    state.doctors.forEach(d=>{
+      const b = el(`<button class="doc-btn" data-id="${d.id}">${escapeHtml(d.name)}<span class="spec">${escapeHtml(d.specialization || 'General')}</span></button>`);
+      card.appendChild(b);
+    });
+  }
+  shell(card);
+  card.querySelectorAll('.doc-btn').forEach(b=> b.addEventListener('click', ()=> pickDoctor(state.doctors.find(d=>d.id===b.dataset.id))));
+}
+
+function renderForm(){
+  const card = el(`<div class="card"></div>`);
+  card.appendChild(el(`<div class="clinic-name">${escapeHtml(state.selectedDoctor.name)}</div>`));
+  card.appendChild(el(`<div class="doctor-name">${escapeHtml(state.selectedDoctor.specialization || 'General')} · ${escapeHtml(state.selectedDoctor.clinic_name)}</div>`));
+  card.appendChild(el(`<div class="field"><label>Your name</label><input type="text" id="p-name" value="${escapeHtml(state.patientName)}" placeholder="Full name"/></div>`));
+  card.appendChild(el(`<div class="field"><label>Mobile (for WhatsApp updates)</label><input type="tel" id="p-mobile" value="${escapeHtml(state.patientMobile)}" placeholder="+91XXXXXXXXXX"/></div>`));
+  if (state.bookingError) card.appendChild(el(`<div class="err-msg">${escapeHtml(state.bookingError)}</div>`));
+  card.appendChild(el(`<button class="btn" id="p-submit" ${state.bookingLoading?'disabled':''}>${state.bookingLoading?'Booking…':'Book my token'}</button>`));
+  card.appendChild(el(`<button class="btn ghost" id="p-back">Back</button>`));
+  shell(card);
+
+  card.querySelector('#p-name').addEventListener('input', e=> state.patientName = e.target.value);
+  card.querySelector('#p-mobile').addEventListener('input', e=> state.patientMobile = e.target.value);
+  card.querySelector('#p-submit').addEventListener('click', submitBooking);
+  card.querySelector('#p-back').addEventListener('click', ()=>{ state.step='pick-doctor'; render(); });
+}
+
+function renderConfirmed(){
+  const b = state.booking;
+  const s = state.status;
+  const card = el(`<div class="card"></div>`);
+  card.appendChild(el(`<div class="clinic-name">${escapeHtml(b.clinic_name)}</div>`));
+  card.appendChild(el(`<div class="doctor-name">${escapeHtml(b.doctor_name)}</div>`));
+
+  const ahead = s ? s.ahead_count : b.ahead_count;
+  const wait = s ? s.estimated_wait_minutes : b.estimated_wait_minutes;
+  const serving = s ? s.current_serving : b.current_serving;
+  const status = s ? s.status : 'WAITING';
+
+  card.appendChild(el(`
+    <div class="token-display">
+      <div class="token-label">Your token</div>
+      <div class="token-num">#${b.token_number}</div>
+    </div>`));
+
+  const row = el(`<div class="status-row"></div>`);
+  row.appendChild(el(`<div><div class="n">${serving ?? '—'}</div><div class="l">Now serving</div></div>`));
+  row.appendChild(el(`<div><div class="n">${ahead}</div><div class="l">Ahead of you</div></div>`));
+  row.appendChild(el(`<div><div class="n">~${wait}m</div><div class="l">Est. wait</div></div>`));
+  card.appendChild(row);
+
+  if (status === 'SERVING'){
+    card.appendChild(el(`<div class="alert-banner now">🚨 It's your turn — please proceed to the doctor.</div>`));
+  } else if (status === 'DONE'){
+    card.appendChild(el(`<div class="alert-banner soon" style="background:var(--teal-soft);color:var(--teal);border-color:rgba(45,212,200,.35);">✅ Your consultation is complete.</div>`));
+  } else if (status === 'CANCELLED'){
+    card.appendChild(el(`<div class="alert-banner soon" style="background:rgba(132,148,166,.14);color:var(--steel);border-color:var(--line);">Your token has been cancelled.</div>`));
+  } else if (status === 'NO_SHOW'){
+    card.appendChild(el(`<div class="alert-banner soon" style="background:rgba(132,148,166,.14);color:var(--steel);border-color:var(--line);">You were marked as a no-show for this token.</div>`));
+  } else if (ahead <= 1){
+    card.appendChild(el(`<div class="alert-banner now">🚨 Please reach the clinic now — you're next.</div>`));
+  } else if (ahead <= 3){
+    card.appendChild(el(`<div class="alert-banner soon">🔔 Your turn is approaching.</div>`));
+  }
+
+  if (status === 'WAITING'){
+    if (state.cancelError) card.appendChild(el(`<div class="err-msg">${escapeHtml(state.cancelError)}</div>`));
+    card.appendChild(el(`<button class="btn ghost" id="p-cancel" ${state.cancelling?'disabled':''} style="margin-top:14px;">${state.cancelling?'Cancelling…':'Cancel my token'}</button>`));
+  }
+
+  card.appendChild(el(`<div class="updated">This page updates automatically every few seconds.</div>`));
+  shell(card);
+
+  const cancelBtn = card.querySelector('#p-cancel');
+  if (cancelBtn) cancelBtn.addEventListener('click', cancelBooking);
+}
+
+function renderBoard(){
+  const card = el(`<div class="card"></div>`);
+  if (state.boardLoading){
+    card.appendChild(el(`<div class="center" style="color:var(--steel);padding:30px 0;">Loading…</div>`));
+  } else if (state.boardError){
+    card.appendChild(el(`<div class="err-msg">${escapeHtml(state.boardError)}</div>`));
+  } else if (state.board){
+    card.appendChild(el(`<div class="clinic-name">${escapeHtml(state.board.clinic_name)}</div>`));
+    card.appendChild(el(`<div class="doctor-name">${escapeHtml(state.board.doctor_name)}</div>`));
+    card.appendChild(el(`
+      <div class="board-serving">
+        <div class="n">${state.board.current_serving ?? '—'}</div>
+        <div class="l">Now serving</div>
+      </div>`));
+    card.appendChild(el(`<div class="waiting-pill">${state.board.waiting_count} patient(s) waiting</div>`));
+    card.appendChild(el(`<div class="updated">Updated ${new Date(state.board.updated_at).toLocaleTimeString()}</div>`));
+  }
+  shell(card);
+}
+
+function render(){
+  if (MODE === 'board'){ renderBoard(); return; }
+  if (state.step === 'pick-doctor') renderPickDoctor();
+  else if (state.step === 'form') renderForm();
+  else renderConfirmed();
+}
+
+/* ============ INIT ============ */
+(function init(){
+  if (MODE === 'board'){
+    startBoardPolling();
+  } else {
+    if (!SLUG){ document.getElementById('root').innerHTML = '<div class="wrap"><div class="card err-msg">Invalid booking link.</div></div>'; return; }
+    if (savedCode){
+      document.getElementById('root').innerHTML = '<div class="wrap"><div class="card center" style="color:var(--steel);padding:30px 0;">Loading your booking…</div></div>';
+      restoreBooking(savedCode);
+      return; // restoreBooking renders itself once the status loads
+    }
+    loadDoctorsForSlug();
+  }
+  render();
+})();
+</script>
+</body>
+</html>

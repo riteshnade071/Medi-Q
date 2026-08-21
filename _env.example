@@ -1,0 +1,44 @@
+# Postgres (recommended for production). Leave unset to fall back to local SQLite for testing.
+DATABASE_URL=postgresql://user:password@host:5432/dbname
+
+# Any long random string
+JWT_SECRET=change-this-to-a-long-random-secret
+
+# Optional — needed only to actually email (not used by core queue features yet).
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=you@yourdomain.com
+SMTP_PASS=your-app-password
+ALERT_FROM_EMAIL=you@yourdomain.com
+
+# Optional — needed for WhatsApp "approaching your turn" / "reach clinic now" notifications.
+# Get these from a Twilio account (console.twilio.com) — the WhatsApp sandbox is free for testing.
+# TWILIO_WHATSAPP_FROM must include the "whatsapp:" prefix, e.g. whatsapp:+14155238886
+TWILIO_ACCOUNT_SID=your-twilio-account-sid
+TWILIO_AUTH_TOKEN=your-twilio-auth-token
+TWILIO_WHATSAPP_FROM=whatsapp:+14155238886
+
+# Optional — how many WAITING patients ahead trigger each notification (defaults shown).
+# Per-clinic override is available in Settings once the clinic is signed up;
+# these env vars are only the fallback default for new clinics.
+QUEUE_APPROACHING_THRESHOLD=3
+QUEUE_NOW_THRESHOLD=1
+
+# Optional — where Help & Support ticket notifications are emailed. Falls back
+# to this default if unset; a clinic can also override it per-clinic in Settings.
+SUPPORT_EMAIL=zalteom111@gmail.com
+
+# ---- Razorpay billing (required for the subscription/paywall system) ----
+# API keys: Razorpay Dashboard -> Settings -> API Keys.
+RAZORPAY_KEY_ID=
+RAZORPAY_KEY_SECRET=
+# Webhook secret: Dashboard -> Settings -> Webhooks -> Add New Webhook.
+# This is a value YOU choose when creating the webhook, not one Razorpay
+# generates for you — pick a long random string and use the same one here.
+RAZORPAY_WEBHOOK_SECRET=
+# Plan ID: Dashboard -> Subscriptions -> Plans -> Create Plan (monthly
+# billing). Copy the plan_xxxxxxxxxxxx id here.
+RAZORPAY_PRO_PLAN_ID=
+# How many days a clinic keeps paid access after a recurring charge fails,
+# before being moved to `suspended`.
+SUBSCRIPTION_GRACE_PERIOD_DAYS=3

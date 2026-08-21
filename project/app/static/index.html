@@ -1,0 +1,609 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Clinic Queue — Staff</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0a0f16; --panel:#0f1620; --panel2:#121a26; --line:rgba(255,255,255,.08);
+    --text:#eef3f8; --steel:#8494a6;
+    --teal:#2dd4c8; --teal-soft:rgba(45,212,200,.13);
+    --amber:#f5a524; --amber-soft:rgba(245,165,36,.14);
+    --coral:#ff6b6b; --coral-soft:rgba(255,107,107,.14);
+    --violet:#a78bfa; --violet-soft:rgba(167,139,250,.13);
+    --radius:14px;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:radial-gradient(1200px 800px at 20% -10%, #0d2a28 0%, transparent 60%), var(--bg);
+    color:var(--text);font-family:'Inter',sans-serif;min-height:100vh;}
+  h1,h2,h3,h4{font-family:'IBM Plex Mono',monospace;margin:0;letter-spacing:-.02em;}
+  input,button,select{font-family:inherit;}
+  .grad-text{background:linear-gradient(90deg,#eef3f8,#8494a6);-webkit-background-clip:text;background-clip:text;color:transparent;}
+  .app{max-width:1180px;margin:0 auto;padding:22px 20px 60px;}
+  .topbar{display:flex;align-items:center;justify-content:space-between;padding:14px 22px;background:var(--panel);
+    border:1px solid var(--line);border-radius:16px;margin-bottom:20px;}
+  .brand{display:flex;align-items:center;gap:10px;font-size:17px;font-weight:700;}
+  .brand svg{width:26px;height:26px;stroke:var(--teal);fill:none;stroke-width:2;}
+  .brand .clinic-slug{color:var(--steel);font-weight:400;font-size:12px;margin-left:6px;}
+  .top-right{display:flex;align-items:center;gap:12px;}
+  .badge{padding:6px 12px;border-radius:20px;font-size:12px;font-weight:600;border:1px solid var(--line);}
+  .badge.trial{color:var(--amber);background:var(--amber-soft);border-color:rgba(245,165,36,.3);}
+  .badge.live{color:var(--teal);background:var(--teal-soft);border-color:rgba(45,212,200,.3);display:flex;align-items:center;gap:6px;}
+  .badge.live .dot{width:6px;height:6px;border-radius:50%;background:var(--teal);}
+  .btn{padding:10px 16px;border-radius:10px;border:1px solid var(--line);background:var(--panel2);color:var(--text);
+    font-size:13px;font-weight:600;cursor:pointer;transition:.15s;display:inline-flex;align-items:center;gap:7px;}
+  .btn:hover{border-color:rgba(255,255,255,.2);}
+  .btn:disabled{opacity:.5;cursor:not-allowed;}
+  .btn.primary{background:var(--teal);color:#04211d;border-color:var(--teal);}
+  .btn.primary:hover{background:#3ee0d3;}
+  .btn.amber{background:var(--amber);color:#2b1a02;border-color:var(--amber);}
+  .btn.amber:hover{background:#ffb742;}
+  .btn.coral{background:var(--coral);color:#2b0a0a;border-color:var(--coral);}
+  .btn.ghost{background:transparent;}
+  .btn.sm{padding:8px 12px;font-size:12.5px;}
+  .btn svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:2;}
+
+  .tabs{display:flex;gap:6px;background:var(--panel2);padding:5px;border-radius:11px;border:1px solid var(--line);
+    margin-bottom:20px;overflow-x:auto;}
+  .tab{padding:9px 16px;border-radius:8px;font-size:13px;font-weight:600;color:var(--steel);cursor:pointer;white-space:nowrap;}
+  .tab.active{background:var(--teal-soft);color:var(--teal);}
+
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:20px;}
+  .grid2{display:grid;grid-template-columns:1.1fr 1fr;gap:16px;}
+  @media(max-width:820px){.grid2{grid-template-columns:1fr;}}
+
+  .serving-panel{text-align:center;padding:30px 20px;}
+  .serving-label{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--steel);font-weight:700;margin-bottom:10px;}
+  .serving-number{font-family:'IBM Plex Mono',monospace;font-size:72px;font-weight:700;color:var(--teal);line-height:1;}
+  .serving-name{margin-top:8px;font-size:15px;color:var(--text);font-weight:600;}
+  .serving-empty{color:var(--steel);font-size:14px;margin-top:8px;}
+  .action-row{display:flex;gap:10px;justify-content:center;margin-top:20px;flex-wrap:wrap;}
+
+  .stat-mini{display:flex;gap:14px;margin-top:18px;justify-content:center;flex-wrap:wrap;}
+  .stat-mini div{text-align:center;}
+  .stat-mini .n{font-family:'IBM Plex Mono',monospace;font-size:20px;font-weight:700;}
+  .stat-mini .l{font-size:10.5px;color:var(--steel);text-transform:uppercase;letter-spacing:.06em;}
+
+  .qlist{display:flex;flex-direction:column;gap:0;max-height:520px;overflow-y:auto;}
+  .qrow{display:flex;align-items:center;gap:12px;padding:12px 4px;border-bottom:1px solid var(--line);}
+  .qrow:last-child{border-bottom:none;}
+  .qnum{font-family:'IBM Plex Mono',monospace;font-weight:700;font-size:15px;width:34px;color:var(--teal);}
+  .qinfo{flex:1;min-width:0;}
+  .qname{font-size:13.5px;font-weight:600;}
+  .qmeta{font-size:11.5px;color:var(--steel);}
+  .qrow .btn{padding:6px 10px;font-size:11.5px;}
+
+  .section-head{display:flex;align-items:center;justify-content:space-between;margin:22px 0 10px;}
+  .section-head h3{font-size:14px;color:var(--steel);text-transform:uppercase;letter-spacing:.06em;display:flex;align-items:center;gap:8px;}
+
+  .field{margin-bottom:14px;}
+  .field label{display:block;font-size:12px;color:var(--steel);margin-bottom:6px;font-weight:600;}
+  input[type=text],input[type=email],input[type=password],input[type=tel],input[type=number]{
+    width:100%;padding:11px 13px;border-radius:9px;border:1px solid var(--line);background:var(--panel2);color:var(--text);font-size:14px;}
+  input:focus{outline:none;border-color:var(--teal);}
+
+  .auth-wrap{max-width:400px;margin:80px auto;padding:0 20px;}
+  .auth-card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:32px 28px;}
+  .auth-logo{display:flex;align-items:center;gap:10px;justify-content:center;margin-bottom:22px;}
+  .auth-logo svg{width:30px;height:30px;stroke:var(--teal);fill:none;stroke-width:2;}
+  .auth-toggle{display:flex;gap:6px;background:var(--panel2);padding:4px;border-radius:9px;margin-bottom:20px;}
+  .auth-toggle div{flex:1;text-align:center;padding:9px;border-radius:7px;font-size:13px;font-weight:600;cursor:pointer;color:var(--steel);}
+  .auth-toggle div.active{background:var(--teal-soft);color:var(--teal);}
+  .err-msg{color:var(--coral);font-size:12.5px;margin-top:8px;}
+  .sub{color:var(--steel);font-size:12.5px;}
+  .empty-state{text-align:center;padding:30px 10px;color:var(--steel);font-size:13.5px;}
+
+  .doctor-card{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid var(--line);}
+  .doctor-card:last-child{border-bottom:none;}
+  .doctor-card .dname{font-weight:700;font-size:14px;}
+  .doctor-card .dspec{font-size:12px;color:var(--steel);}
+
+  .modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:50;padding:20px;}
+  .modal{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:24px;max-width:400px;width:100%;}
+  .modal h3{margin-bottom:16px;}
+  .modal-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:8px;}
+
+  .link-box{display:flex;align-items:center;gap:8px;background:var(--panel2);border:1px solid var(--line);border-radius:9px;padding:10px 12px;font-family:'IBM Plex Mono',monospace;font-size:12.5px;color:var(--teal);word-break:break-all;}
+
+  ::-webkit-scrollbar{width:8px;} ::-webkit-scrollbar-thumb{background:rgba(255,255,255,.12);border-radius:4px;}
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script>
+const API_BASE = ""; // relative — this file is served by the same FastAPI app it talks to
+
+/* ============ STATE ============ */
+const state = {
+  token: localStorage.getItem('cq_token') || null,
+  authMode: 'login', authEmail: '', authPassword: '', authClinicName: '', authError: '', authLoading: false,
+
+  profile: null,
+  doctors: [], doctorsLoading: false,
+  activeDoctorId: null,
+
+  queueData: null, queueLoading: false,
+  dashSummary: null,
+
+  view: 'queue', // queue | doctors | billing
+  billing: null,
+
+  walkinOpen: false, walkinName: '', walkinMobile: '', walkinSaving: false, walkinError: '',
+  doctorFormOpen: false, doctorFormMode: 'add', doctorFormId: null,
+  doctorFormName: '', doctorFormSpec: '', doctorFormMinutes: 6, doctorFormSaving: false, doctorFormError: '',
+
+  queueActionInFlight: false, // guards Next/Skip/Complete/Recall against double-clicks
+};
+
+let pollTimer = null;
+
+/* ============ HELPERS ============ */
+function el(html){ const t = document.createElement('template'); t.innerHTML = html.trim(); return t.content.firstElementChild; }
+function escapeHtml(s){ return String(s==null?'':s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function icon(name){
+  const M = {
+    logo:`<svg viewBox="0 0 24 24"><path d="M12 2l8 4v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V6l8-4z"/><path d="M9 12l2 2 4-4"/></svg>`,
+    logout:`<svg viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>`,
+    users:`<svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>`,
+    plus:`<svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>`,
+    next:`<svg viewBox="0 0 24 24"><path d="M5 4l10 8-10 8V4z"/><path d="M19 5v14"/></svg>`,
+    skip:`<svg viewBox="0 0 24 24"><path d="M5 4l10 8-10 8V4z"/><path d="M19 4v16"/></svg>`,
+    x:`<svg viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg>`,
+    card:`<svg viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>`,
+    link:`<svg viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.5.5l2-2a5 5 0 0 0-7-7l-1.5 1.5"/><path d="M14 11a5 5 0 0 0-7.5-.5l-2 2a5 5 0 0 0 7 7l1.5-1.5"/></svg>`,
+  };
+  return M[name] || '';
+}
+
+async function api(path, {method='GET', body=null, auth=true} = {}){
+  const headers = {'Content-Type':'application/json'};
+  if (auth && state.token) headers['Authorization'] = 'Bearer ' + state.token;
+  const res = await fetch(API_BASE + path, {method, headers, body: body ? JSON.stringify(body) : undefined});
+  if (!res.ok){
+    let detail = 'Request failed';
+    try{ const j = await res.json(); detail = j.detail || detail; } catch(e){}
+    throw new Error(detail);
+  }
+  if (res.status === 204) return null;
+  return res.json();
+}
+
+async function apiForm(path, formData){
+  const res = await fetch(API_BASE + path, {method:'POST', body: formData});
+  if (!res.ok){
+    let detail = 'Request failed';
+    try{ const j = await res.json(); detail = j.detail || detail; } catch(e){}
+    throw new Error(detail);
+  }
+  return res.json();
+}
+
+/* ============ AUTH ============ */
+async function doSignup(){
+  state.authLoading = true; state.authError = ''; render();
+  try{
+    const data = await api('/auth/signup', {method:'POST', auth:false, body:{
+      clinic_name: state.authClinicName, email: state.authEmail, password: state.authPassword
+    }});
+    state.token = data.access_token; localStorage.setItem('cq_token', state.token);
+    await afterLogin();
+  } catch(e){ state.authError = e.message; }
+  state.authLoading = false; render();
+}
+
+async function doLogin(){
+  state.authLoading = true; state.authError = ''; render();
+  try{
+    const form = new URLSearchParams();
+    form.append('username', state.authEmail); form.append('password', state.authPassword);
+    const data = await apiForm('/auth/login', form);
+    state.token = data.access_token; localStorage.setItem('cq_token', state.token);
+    await afterLogin();
+  } catch(e){ state.authError = e.message; }
+  state.authLoading = false; render();
+}
+
+function logout(){
+  state.token = null; localStorage.removeItem('cq_token');
+  state.profile = null; state.doctors = []; state.queueData = null;
+  if (pollTimer) clearInterval(pollTimer);
+  render();
+}
+
+async function afterLogin(){
+  await loadProfile();
+  await loadDoctors();
+  startPolling();
+}
+
+/* ============ DATA LOADING ============ */
+async function loadProfile(){
+  try{ state.profile = await api('/auth/me'); } catch(e){ if (String(e.message).includes('expired')||String(e.message).includes('cancelled')) state.profile=null; }
+}
+
+async function loadDoctors(){
+  state.doctorsLoading = true; render();
+  try{
+    state.doctors = await api('/doctors');
+    if (!state.activeDoctorId && state.doctors.length) state.activeDoctorId = state.doctors[0].id;
+  } catch(e){}
+  state.doctorsLoading = false; render();
+}
+
+async function loadQueue(){
+  if (!state.activeDoctorId) return;
+  state.queueLoading = true;
+  try{ state.queueData = await api('/queue/' + state.activeDoctorId); } catch(e){}
+  state.queueLoading = false; render();
+}
+
+async function loadDashboard(){
+  try{ state.dashSummary = await api('/dashboard/summary'); } catch(e){}
+}
+
+async function loadBilling(){
+  try{ state.billing = await api('/billing/status'); } catch(e){}
+  render();
+}
+
+function startPolling(){
+  if (pollTimer) clearInterval(pollTimer);
+  pollTimer = setInterval(()=>{
+    if (!state.token) return;
+    if (state.view === 'queue') loadQueue();
+  }, 8000);
+}
+
+/* ============ ACTIONS ============ */
+async function runQueueAction(fn){
+  // Prevents accidental double-clicks (e.g. a slow network) from firing the
+  // same queue-advancing action twice, which could skip two patients instead
+  // of one.
+  if (state.queueActionInFlight) return;
+  state.queueActionInFlight = true; render();
+  try{ await fn(); await loadQueue(); }
+  catch(e){ alert(e.message); }
+  state.queueActionInFlight = false; render();
+}
+async function callNext(){
+  await runQueueAction(()=> api('/queue/' + state.activeDoctorId + '/next', {method:'POST'}));
+}
+async function skipCurrent(){
+  await runQueueAction(()=> api('/queue/' + state.activeDoctorId + '/skip', {method:'POST'}));
+}
+async function completeCurrent(){
+  await runQueueAction(()=> api('/queue/' + state.activeDoctorId + '/complete', {method:'POST'}));
+}
+async function recallCurrent(){
+  await runQueueAction(()=> api('/queue/' + state.activeDoctorId + '/recall', {method:'POST'}));
+}
+async function markNoShow(tokenId){
+  try{ await api('/queue/token/' + tokenId + '/no-show', {method:'POST'}); await loadQueue(); }
+  catch(e){ alert(e.message); }
+}
+async function submitWalkin(){
+  if (!state.walkinName.trim()){ state.walkinError = 'Name is required'; render(); return; }
+  state.walkinSaving = true; state.walkinError = ''; render();
+  try{
+    await api('/queue/walkin', {method:'POST', body:{
+      doctor_id: state.activeDoctorId, patient_name: state.walkinName.trim(), patient_mobile: state.walkinMobile || null
+    }});
+    state.walkinOpen = false; state.walkinName=''; state.walkinMobile='';
+    await loadQueue();
+  } catch(e){ state.walkinError = e.message; }
+  state.walkinSaving = false; render();
+}
+
+async function submitDoctorForm(){
+  if (!state.doctorFormName.trim()){ state.doctorFormError = 'Name is required'; render(); return; }
+  state.doctorFormSaving = true; state.doctorFormError = ''; render();
+  try{
+    const payload = {
+      name: state.doctorFormName.trim(),
+      specialization: state.doctorFormSpec || null,
+      avg_consult_minutes: Number(state.doctorFormMinutes) || 6,
+    };
+    if (state.doctorFormMode === 'add'){
+      await api('/doctors', {method:'POST', body: payload});
+    } else {
+      await api('/doctors/' + state.doctorFormId, {method:'PATCH', body: payload});
+    }
+    state.doctorFormOpen = false;
+    await loadDoctors();
+  } catch(e){ state.doctorFormError = e.message; }
+  state.doctorFormSaving = false; render();
+}
+
+function openAddDoctor(){
+  state.doctorFormOpen = true; state.doctorFormMode = 'add'; state.doctorFormId = null;
+  state.doctorFormName=''; state.doctorFormSpec=''; state.doctorFormMinutes=6; state.doctorFormError=''; render();
+}
+function openEditDoctor(doc){
+  state.doctorFormOpen = true; state.doctorFormMode = 'edit'; state.doctorFormId = doc.id;
+  state.doctorFormName = doc.name; state.doctorFormSpec = doc.specialization || ''; state.doctorFormMinutes = doc.avg_consult_minutes;
+  state.doctorFormError=''; render();
+}
+async function deactivateDoctor(id){
+  if (!confirm('Deactivate this doctor?')) return;
+  try{ await api('/doctors/' + id, {method:'DELETE'}); await loadDoctors(); } catch(e){ alert(e.message); }
+}
+
+/* ============ RENDER: AUTH ============ */
+function renderAuth(){
+  const root = document.getElementById('root');
+  root.innerHTML = '';
+  const wrap = el(`<div class="auth-wrap"></div>`);
+  wrap.appendChild(el(`
+    <div class="auth-card">
+      <div class="auth-logo">${icon('logo')}<h1 style="font-size:19px;">Clinic Queue</h1></div>
+      <div class="auth-toggle">
+        <div data-mode="login" class="${state.authMode==='login'?'active':''}">Log in</div>
+        <div data-mode="signup" class="${state.authMode==='signup'?'active':''}">Sign up</div>
+      </div>
+    </div>`));
+  const card = wrap.querySelector('.auth-card');
+
+  if (state.authMode === 'signup'){
+    card.appendChild(el(`<div class="field"><label>Clinic name</label><input type="text" id="a-clinic" value="${escapeHtml(state.authClinicName)}" placeholder="Dr. Sharma Clinic"/></div>`));
+  }
+  card.appendChild(el(`<div class="field"><label>Email</label><input type="email" id="a-email" value="${escapeHtml(state.authEmail)}" placeholder="you@clinic.com"/></div>`));
+  card.appendChild(el(`<div class="field"><label>Password</label><input type="password" id="a-pass" value="${escapeHtml(state.authPassword)}" placeholder="••••••••"/></div>`));
+  if (state.authError) card.appendChild(el(`<div class="err-msg">${escapeHtml(state.authError)}</div>`));
+  card.appendChild(el(`<button class="btn primary" id="a-submit" style="width:100%;justify-content:center;margin-top:6px;" ${state.authLoading?'disabled':''}>${state.authLoading?'Please wait…':(state.authMode==='login'?'Log in':'Create account')}</button>`));
+
+  root.appendChild(wrap);
+
+  wrap.querySelectorAll('[data-mode]').forEach(t=> t.addEventListener('click', ()=>{ state.authMode = t.dataset.mode; state.authError=''; render(); }));
+  const clinicInput = card.querySelector('#a-clinic');
+  if (clinicInput) clinicInput.addEventListener('input', e=> state.authClinicName = e.target.value);
+  card.querySelector('#a-email').addEventListener('input', e=> state.authEmail = e.target.value);
+  card.querySelector('#a-pass').addEventListener('input', e=> state.authPassword = e.target.value);
+  card.querySelector('#a-submit').addEventListener('click', ()=> state.authMode==='login' ? doLogin() : doSignup());
+}
+
+/* ============ RENDER: SHELL ============ */
+function renderShell(contentEl){
+  const root = document.getElementById('root');
+  root.innerHTML = '';
+  const app = el(`<div class="app"></div>`);
+
+  const trialBadge = state.billing && state.billing.plan === 'trial'
+    ? `<div class="badge trial">${state.billing.trial_days_left ?? '—'}d left on trial</div>` : '';
+
+  app.appendChild(el(`
+    <div class="topbar">
+      <div class="brand">${icon('logo')} Clinic Queue ${state.profile?`<span class="clinic-slug">${escapeHtml(state.profile.clinic_name)}</span>`:''}</div>
+      <div class="top-right">
+        ${trialBadge}
+        <div class="badge live"><span class="dot"></span>LIVE</div>
+        <button class="btn ghost sm" id="logout-btn">${icon('logout')} Log out</button>
+      </div>
+    </div>`));
+
+  const tabs = el(`
+    <div class="tabs">
+      <div class="tab" data-view="queue">Queue</div>
+      <div class="tab" data-view="doctors">Doctors</div>
+      <div class="tab" data-view="billing">Billing</div>
+    </div>`);
+  tabs.querySelectorAll('.tab').forEach(tb=>{ if (tb.dataset.view === state.view) tb.classList.add('active'); });
+  app.appendChild(tabs);
+
+  app.appendChild(contentEl);
+  root.appendChild(app);
+
+  app.querySelector('#logout-btn').addEventListener('click', logout);
+  tabs.querySelectorAll('.tab').forEach(tb=> tb.addEventListener('click', ()=>{
+    state.view = tb.dataset.view;
+    if (state.view === 'billing') loadBilling();
+    if (state.view === 'queue') loadQueue();
+    render();
+  }));
+}
+
+/* ============ RENDER: QUEUE ============ */
+function renderQueue(){
+  const wrap = el(`<div></div>`);
+
+  if (state.doctorsLoading){ wrap.appendChild(el(`<div class="empty-state">Loading doctors…</div>`)); renderShell(wrap); return; }
+  if (!state.doctors.length){
+    wrap.appendChild(el(`<div class="card empty-state">${icon('users')}<div style="margin-top:10px;">No doctors yet. Add one in the Doctors tab to start taking tokens.</div></div>`));
+    renderShell(wrap); return;
+  }
+
+  const doctorTabs = el(`<div class="tabs" style="margin-bottom:16px;"></div>`);
+  state.doctors.forEach(d=>{
+    const t = el(`<div class="tab ${d.id===state.activeDoctorId?'active':''}" data-id="${d.id}">${escapeHtml(d.name)}</div>`);
+    doctorTabs.appendChild(t);
+  });
+  wrap.appendChild(doctorTabs);
+
+  const grid = el(`<div class="grid2"></div>`);
+
+  // Left: current serving + actions
+  const left = el(`<div class="card serving-panel"></div>`);
+  const qd = state.queueData;
+  if (qd && qd.current_serving){
+    left.appendChild(el(`
+      <div class="serving-label">Now serving</div>
+      <div class="serving-number">#${qd.current_serving.token_number}</div>
+      <div class="serving-name">${escapeHtml(qd.current_serving.patient_name)}</div>`));
+  } else {
+    left.appendChild(el(`<div class="serving-label">Now serving</div><div class="serving-number">—</div><div class="serving-empty">No patient currently being seen</div>`));
+  }
+  const actions = el(`<div class="action-row"></div>`);
+  const busy = state.queueActionInFlight;
+  actions.appendChild(el(`<button class="btn primary" id="btn-next" ${busy?'disabled':''}>${icon('next')} Next patient</button>`));
+  actions.appendChild(el(`<button class="btn ghost" id="btn-complete" ${busy || !(qd&&qd.current_serving)?'disabled':''}>Complete</button>`));
+  actions.appendChild(el(`<button class="btn ghost" id="btn-recall" ${busy || !(qd&&qd.current_serving)?'disabled':''}>Recall</button>`));
+  actions.appendChild(el(`<button class="btn ghost" id="btn-skip" ${busy || !(qd&&qd.current_serving)?'disabled':''}>${icon('skip')} Skip</button>`));
+  actions.appendChild(el(`<button class="btn amber" id="btn-walkin" ${busy?'disabled':''}>${icon('plus')} Add walk-in</button>`));
+  left.appendChild(actions);
+
+  if (qd){
+    const stats = el(`<div class="stat-mini"></div>`);
+    stats.appendChild(el(`<div><div class="n" style="color:var(--teal);">${qd.waiting.length}</div><div class="l">Waiting</div></div>`));
+    stats.appendChild(el(`<div><div class="n">${qd.done_count}</div><div class="l">Done</div></div>`));
+    stats.appendChild(el(`<div><div class="n" style="color:var(--coral);">${qd.no_show_count}</div><div class="l">No-show</div></div>`));
+    left.appendChild(stats);
+  }
+  grid.appendChild(left);
+
+  // Right: waiting list
+  const right = el(`<div class="card"></div>`);
+  right.appendChild(el(`<h3 style="font-size:14px;color:var(--steel);text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px;">Waiting list</h3>`));
+  const list = el(`<div class="qlist"></div>`);
+  if (qd && qd.waiting.length){
+    qd.waiting.forEach(t=>{
+      const row = el(`
+        <div class="qrow">
+          <div class="qnum">#${t.token_number}</div>
+          <div class="qinfo"><div class="qname">${escapeHtml(t.patient_name)}</div><div class="qmeta">${t.source === 'WALKIN' ? 'Walk-in' : 'Online'}${t.patient_mobile ? ' · ' + escapeHtml(t.patient_mobile) : ''}</div></div>
+          <button class="btn ghost sm" data-noshow="${t.id}">No-show</button>
+        </div>`);
+      list.appendChild(row);
+    });
+  } else {
+    list.appendChild(el(`<div class="empty-state">No one waiting right now.</div>`));
+  }
+  right.appendChild(list);
+  grid.appendChild(right);
+
+  wrap.appendChild(grid);
+
+  const publicLink = state.profile ? `${location.origin}/book/${state.profile.clinic_slug}` : '';
+  if (publicLink){
+    wrap.appendChild(el(`<div class="section-head"><h3>${icon('link')} Patient booking link</h3></div>`));
+    wrap.appendChild(el(`<div class="link-box">${escapeHtml(publicLink)}</div>`));
+  }
+
+  renderShell(wrap);
+
+  doctorTabs.querySelectorAll('.tab').forEach(tb=> tb.addEventListener('click', ()=>{
+    state.activeDoctorId = tb.dataset.id; state.queueData = null; loadQueue();
+  }));
+  wrap.querySelector('#btn-next').addEventListener('click', callNext);
+  wrap.querySelector('#btn-skip').addEventListener('click', skipCurrent);
+  wrap.querySelector('#btn-complete').addEventListener('click', completeCurrent);
+  wrap.querySelector('#btn-recall').addEventListener('click', recallCurrent);
+  wrap.querySelector('#btn-walkin').addEventListener('click', ()=>{ state.walkinOpen = true; state.walkinName=''; state.walkinMobile=''; state.walkinError=''; render(); });
+  wrap.querySelectorAll('[data-noshow]').forEach(b=> b.addEventListener('click', ()=> markNoShow(b.dataset.noshow)));
+
+  if (state.walkinOpen) renderWalkinModal();
+}
+
+function renderWalkinModal(){
+  const bg = el(`<div class="modal-bg"></div>`);
+  const modal = el(`<div class="modal"><h3>Add walk-in patient</h3></div>`);
+  modal.appendChild(el(`<div class="field"><label>Patient name</label><input type="text" id="w-name" value="${escapeHtml(state.walkinName)}"/></div>`));
+  modal.appendChild(el(`<div class="field"><label>Mobile (optional)</label><input type="tel" id="w-mobile" value="${escapeHtml(state.walkinMobile)}" placeholder="+91XXXXXXXXXX"/></div>`));
+  if (state.walkinError) modal.appendChild(el(`<div class="err-msg">${escapeHtml(state.walkinError)}</div>`));
+  const acts = el(`<div class="modal-actions"></div>`);
+  acts.appendChild(el(`<button class="btn ghost" id="w-cancel">Cancel</button>`));
+  acts.appendChild(el(`<button class="btn primary" id="w-save" ${state.walkinSaving?'disabled':''}>${state.walkinSaving?'Adding…':'Add to queue'}</button>`));
+  modal.appendChild(acts);
+  bg.appendChild(modal);
+  document.getElementById('root').appendChild(bg);
+
+  modal.querySelector('#w-name').addEventListener('input', e=> state.walkinName = e.target.value);
+  modal.querySelector('#w-mobile').addEventListener('input', e=> state.walkinMobile = e.target.value);
+  modal.querySelector('#w-cancel').addEventListener('click', ()=>{ state.walkinOpen=false; render(); });
+  modal.querySelector('#w-save').addEventListener('click', submitWalkin);
+  bg.addEventListener('click', e=>{ if (e.target === bg){ state.walkinOpen=false; render(); } });
+}
+
+/* ============ RENDER: DOCTORS ============ */
+function renderDoctors(){
+  const wrap = el(`<div></div>`);
+  wrap.appendChild(el(`
+    <div class="section-head" style="margin-top:0;">
+      <h3>${icon('users')} Doctors</h3>
+      <button class="btn amber sm" id="add-doctor">${icon('plus')} Add doctor</button>
+    </div>`));
+  const card = el(`<div class="card"></div>`);
+  if (state.doctors.length){
+    state.doctors.forEach(d=>{
+      const row = el(`
+        <div class="doctor-card">
+          <div><div class="dname">${escapeHtml(d.name)}</div><div class="dspec">${escapeHtml(d.specialization || 'General')} · avg ${d.avg_consult_minutes} min/patient</div></div>
+          <div style="display:flex;gap:8px;">
+            <button class="btn ghost sm" data-edit="${d.id}">Edit</button>
+            <button class="btn ghost sm" data-deact="${d.id}">Deactivate</button>
+          </div>
+        </div>`);
+      card.appendChild(row);
+    });
+  } else {
+    card.appendChild(el(`<div class="empty-state">No doctors added yet.</div>`));
+  }
+  wrap.appendChild(card);
+  renderShell(wrap);
+
+  wrap.querySelector('#add-doctor').addEventListener('click', openAddDoctor);
+  wrap.querySelectorAll('[data-edit]').forEach(b=> b.addEventListener('click', ()=> openEditDoctor(state.doctors.find(d=>d.id===b.dataset.edit))));
+  wrap.querySelectorAll('[data-deact]').forEach(b=> b.addEventListener('click', ()=> deactivateDoctor(b.dataset.deact)));
+
+  if (state.doctorFormOpen) renderDoctorFormModal();
+}
+
+function renderDoctorFormModal(){
+  const bg = el(`<div class="modal-bg"></div>`);
+  const modal = el(`<div class="modal"><h3>${state.doctorFormMode==='add'?'Add doctor':'Edit doctor'}</h3></div>`);
+  modal.appendChild(el(`<div class="field"><label>Name</label><input type="text" id="d-name" value="${escapeHtml(state.doctorFormName)}" placeholder="Dr. Sharma"/></div>`));
+  modal.appendChild(el(`<div class="field"><label>Specialization (optional)</label><input type="text" id="d-spec" value="${escapeHtml(state.doctorFormSpec)}" placeholder="General Physician"/></div>`));
+  modal.appendChild(el(`<div class="field"><label>Avg. consultation time (minutes)</label><input type="number" id="d-min" value="${state.doctorFormMinutes}" min="1"/></div>`));
+  if (state.doctorFormError) modal.appendChild(el(`<div class="err-msg">${escapeHtml(state.doctorFormError)}</div>`));
+  const acts = el(`<div class="modal-actions"></div>`);
+  acts.appendChild(el(`<button class="btn ghost" id="d-cancel">Cancel</button>`));
+  acts.appendChild(el(`<button class="btn primary" id="d-save" ${state.doctorFormSaving?'disabled':''}>${state.doctorFormSaving?'Saving…':'Save'}</button>`));
+  modal.appendChild(acts);
+  bg.appendChild(modal);
+  document.getElementById('root').appendChild(bg);
+
+  modal.querySelector('#d-name').addEventListener('input', e=> state.doctorFormName = e.target.value);
+  modal.querySelector('#d-spec').addEventListener('input', e=> state.doctorFormSpec = e.target.value);
+  modal.querySelector('#d-min').addEventListener('input', e=> state.doctorFormMinutes = e.target.value);
+  modal.querySelector('#d-cancel').addEventListener('click', ()=>{ state.doctorFormOpen=false; render(); });
+  modal.querySelector('#d-save').addEventListener('click', submitDoctorForm);
+  bg.addEventListener('click', e=>{ if (e.target === bg){ state.doctorFormOpen=false; render(); } });
+}
+
+/* ============ RENDER: BILLING ============ */
+function renderBilling(){
+  const wrap = el(`<div></div>`);
+  wrap.appendChild(el(`<div class="section-head" style="margin-top:0;"><h3>${icon('card')} Billing</h3></div>`));
+  const card = el(`<div class="card"></div>`);
+  if (state.billing){
+    card.appendChild(el(`
+      <div class="field"><label>Clinic</label><div style="font-weight:700;">${escapeHtml(state.billing.clinic_name)}</div></div>
+      <div class="field"><label>Plan</label><div style="font-weight:700;text-transform:capitalize;">${escapeHtml(state.billing.plan)}</div></div>
+      <div class="field"><label>Status</label><div style="font-weight:700;text-transform:capitalize;">${escapeHtml(state.billing.subscription_status)}</div></div>
+      ${state.billing.plan === 'trial' ? `<div class="field"><label>Trial days left</label><div style="font-weight:700;">${state.billing.trial_days_left}</div></div>` : ''}
+    `));
+  } else {
+    card.appendChild(el(`<div class="empty-state">Loading…</div>`));
+  }
+  wrap.appendChild(card);
+  renderShell(wrap);
+}
+
+/* ============ ROOT RENDER ============ */
+function render(){
+  if (!state.token){ renderAuth(); return; }
+  if (state.view === 'doctors') renderDoctors();
+  else if (state.view === 'billing') renderBilling();
+  else renderQueue();
+}
+
+/* ============ INIT ============ */
+(async function init(){
+  if (state.token){ await afterLogin(); }
+  render();
+})();
+</script>
+</body>
+</html>

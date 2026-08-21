@@ -26,7 +26,7 @@ def billing_status(db: Session = Depends(get_db), clinic: models.Clinic = Depend
     state = subscription_service.sync_subscription_state(db, clinic)
     days_left = None
     if state == subscription_service.TRIALING and clinic.trial_ends_at:
-        days_left = max(0, (clinic.trial_ends_at - datetime.utcnow()).days)
+        days_left = subscription_service.trial_days_left(clinic.trial_ends_at)
     return schemas.BillingStatusOut(
         clinic_name=clinic.name,
         clinic_slug=clinic.slug,

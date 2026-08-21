@@ -1,10 +1,33 @@
 import os
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy.orm import Session
 
 from .. import models
 from ..plans import PAID_FEATURES, PLANS
+
+# Trial day-counts are shown to Indian clinics, so "days left" is counted by
+# IST calendar date (not by chopping a raw UTC timedelta into whole days).
+# That keeps the number stable across the day and only rolls over at IST
+# midnight, instead of drifting an extra day short depending on what time the
+# trial happened to start.
+IST = timezone(timedelta(hours=5, minutes=30))
+
+
+def trial_days_left(trial_ends_at: datetime | None, now: datetime | None = None) -> int:
+    """Days remaining on the trial, counted by IST calendar date.
+
+    `trial_ends_at` is stored as naive UTC (see Clinic.trial_ends_at). We
+    convert both the deadline and "now" to IST and diff the *dates*, so a
+    trial ending on 30 Aug shows the same "days left" all day on 20 Aug in
+    IST, and ticks down exactly at IST midnight.
+    """
+    if trial_ends_at is None:
+        return 0
+    now = now or datetime.utcnow()
+    now_ist = now.replace(tzinfo=timezone.utc).astimezone(IST)
+    end_ist = trial_ends_at.replace(tzinfo=timezone.utc).astimezone(IST)
+    return max(0, (end_ist.date() - now_ist.date()).days)
 
 # States (recommended set from the spec). `subscription_status` on the Clinic
 # row is a cache of the last-computed value of these — always re-derive via

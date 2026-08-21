@@ -18,6 +18,7 @@ def dashboard_summary(db: Session, clinic_id: str) -> dict:
     total_waiting = 0
     total_done = 0
     total_no_show = 0
+    total_collected = 0.0
 
     for doc in doctors:
         tokens_today = (
@@ -34,6 +35,7 @@ def dashboard_summary(db: Session, clinic_id: str) -> dict:
         total_waiting += len(waiting)
         total_done += len(done)
         total_no_show += len(no_show)
+        total_collected += sum(t.amount_paid or 0 for t in tokens_today)
 
         per_doctor.append({
             "doctor_id": doc.id,
@@ -50,5 +52,6 @@ def dashboard_summary(db: Session, clinic_id: str) -> dict:
         "waiting_count": total_waiting,
         "done_count": total_done,
         "no_show_count": total_no_show,
+        "total_collected_today": total_collected,
         "per_doctor": per_doctor,
     }

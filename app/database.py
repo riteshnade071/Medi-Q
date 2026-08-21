@@ -52,6 +52,7 @@ _REQUIRED_COLUMNS = {
     "tokens": [
         ("patient_id", "VARCHAR"),
         ("checked_in_at", "TIMESTAMP"),
+        ("amount_paid", "FLOAT"),
     ],
     # Subscription/billing fields added to the existing `clinics` table for the
     # trial + Razorpay subscription system. `payments` is a brand-new table so

@@ -90,7 +90,7 @@ def estimate_wait_minutes(doctor: models.Doctor, ahead: int) -> int:
 MAX_BOOKING_RETRIES = 5
 
 
-def create_booking(db: Session, doctor: models.Doctor, patient_name: str, patient_mobile: str, source: models.TokenSource) -> models.Token:
+def create_booking(db: Session, doctor: models.Doctor, patient_name: str, patient_mobile: str, source: models.TokenSource, amount_paid: float = None) -> models.Token:
     """Server-side token assignment with retry-on-conflict.
 
     Two patients booking at the exact same instant will race to read the
@@ -122,6 +122,7 @@ def create_booking(db: Session, doctor: models.Doctor, patient_name: str, patien
             patient_name=patient_name,
             patient_mobile=patient_mobile,
             source=source,
+            amount_paid=amount_paid,
         )
         db.add(token)
         try:

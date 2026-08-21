@@ -66,6 +66,11 @@ class WalkinCreate(BaseModel):
     doctor_id: str
     patient_name: str
     patient_mobile: Optional[str] = None
+    amount_paid: Optional[float] = None  # optional consultation fee, entered at walk-in time
+
+
+class PaymentUpdate(BaseModel):
+    amount_paid: Optional[float] = None  # None/omitted clears a previously recorded amount
 
 
 class TokenOut(BaseModel):
@@ -77,6 +82,7 @@ class TokenOut(BaseModel):
     source: str
     created_at: datetime
     called_at: Optional[datetime] = None
+    amount_paid: Optional[float] = None
 
     class Config:
         from_attributes = True
@@ -149,6 +155,7 @@ class PatientVisitOut(BaseModel):
     created_at: datetime
     called_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
+    amount_paid: Optional[float] = None
 
 
 class PatientDetailOut(BaseModel):
@@ -295,4 +302,5 @@ class DashboardSummary(BaseModel):
     waiting_count: int
     done_count: int
     no_show_count: int
+    total_collected_today: float = 0
     per_doctor: List[DoctorDaySummary]

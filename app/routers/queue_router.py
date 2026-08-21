@@ -31,10 +31,35 @@ def add_walkin(
         raise HTTPException(status_code=403, detail="Walk-in registration is currently disabled")
     try:
         token = queue_service.create_booking(
-            db, doctor, payload.patient_name, payload.patient_mobile, models.TokenSource.WALKIN
+            db, doctor, payload.patient_name, payload.patient_mobile, models.TokenSource.WALKIN,
+            amount_paid=payload.amount_paid,
         )
     except QueueError as e:
         raise HTTPException(status_code=409, detail=str(e))
+    return token
+
+
+@router.patch("/token/{token_id}/payment", response_model=schemas.TokenOut)
+def update_payment(
+    token_id: str,
+    payload: schemas.PaymentUpdate,
+    db: Session = Depends(get_db),
+    user: models.User = Depends(auth.require_feature("queue_management")),
+):
+    """Record (or correct/clear) how much a patient paid for a visit — entirely
+    optional and separate from the clinic's own Qurely subscription billing.
+    Usable any time, not just at booking: e.g. an online booking that pays in
+    cash at the counter later."""
+    token = db.query(models.Token).filter(
+        models.Token.id == token_id, models.Token.clinic_id == user.clinic_id
+    ).first()
+    if not token:
+        raise HTTPException(status_code=404, detail="Token not found")
+    if payload.amount_paid is not None and payload.amount_paid < 0:
+        raise HTTPException(status_code=400, detail="Amount cannot be negative")
+    token.amount_paid = payload.amount_paid
+    db.commit()
+    db.refresh(token)
     return token
 
 

@@ -76,6 +76,13 @@
   .qname{font-size:13.5px;font-weight:600;}
   .qmeta{font-size:11.5px;color:var(--steel);}
   .qrow .btn{padding:6px 10px;font-size:11.5px;}
+  .pay-pill{display:inline-flex;align-items:center;gap:4px;padding:5px 10px;border-radius:8px;border:1px solid var(--line);
+    background:var(--panel2);color:var(--steel);font-size:11.5px;font-weight:600;cursor:pointer;font-family:'IBM Plex Mono',monospace;white-space:nowrap;}
+  .pay-pill.set{color:var(--teal);border-color:rgba(45,212,200,.3);background:var(--teal-soft);}
+  .pay-pill{font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:700;padding:5px 9px;border-radius:8px;
+    border:1px solid var(--line);background:var(--panel2);color:var(--steel);cursor:pointer;white-space:nowrap;margin-right:8px;}
+  .pay-pill.set{color:var(--teal);border-color:rgba(45,212,200,.3);background:var(--teal-soft);}
+  .pay-pill:hover{border-color:var(--teal);}
 
   .section-head{display:flex;align-items:center;justify-content:space-between;margin:22px 0 10px;}
   .section-head h3{font-size:14px;color:var(--steel);text-transform:uppercase;letter-spacing:.06em;display:flex;align-items:center;gap:8px;}
@@ -151,7 +158,8 @@ const state = {
   subscribeLoadingPlan: null, subscribeError: '', confirmingPayment: false,
   subscriptionLockOpen: false, subscriptionLockMessage: '', subscriptionLockStatus: '',
 
-  walkinOpen: false, walkinName: '', walkinMobile: '', walkinSaving: false, walkinError: '',
+  walkinOpen: false, walkinName: '', walkinMobile: '', walkinAmount: '', walkinSaving: false, walkinError: '',
+  paymentModal: null, paymentSaving: false, paymentError: '',
   doctorFormOpen: false, doctorFormMode: 'add', doctorFormId: null,
   doctorFormName: '', doctorFormSpec: '', doctorFormMinutes: 6, doctorFormSaving: false, doctorFormError: '',
 
@@ -453,12 +461,18 @@ async function markNoShow(tokenId){
 }
 async function submitWalkin(){
   if (!state.walkinName.trim()){ state.walkinError = 'Name is required'; render(); return; }
+  let amount = null;
+  if (state.walkinAmount && state.walkinAmount.trim() !== ''){
+    amount = Number(state.walkinAmount);
+    if (isNaN(amount) || amount < 0){ state.walkinError = 'Amount must be a valid positive number'; render(); return; }
+  }
   state.walkinSaving = true; state.walkinError = ''; render();
   try{
     await api('/queue/walkin', {method:'POST', body:{
-      doctor_id: state.activeDoctorId, patient_name: state.walkinName.trim(), patient_mobile: state.walkinMobile || null
+      doctor_id: state.activeDoctorId, patient_name: state.walkinName.trim(), patient_mobile: state.walkinMobile || null,
+      amount_paid: amount,
     }});
-    state.walkinOpen = false; state.walkinName=''; state.walkinMobile='';
+    state.walkinOpen = false; state.walkinName=''; state.walkinMobile=''; state.walkinAmount='';
     await loadQueue();
   } catch(e){ state.walkinError = e.message; }
   state.walkinSaving = false; render();
@@ -641,6 +655,7 @@ function renderQueue(){
       <div class="serving-label">Now serving</div>
       <div class="serving-number">#${qd.current_serving.token_number}</div>
       <div class="serving-name">${escapeHtml(qd.current_serving.patient_name)}</div>`));
+    left.appendChild(el(`<div style="margin-top:10px;">${paymentPill(qd.current_serving).outerHTML}</div>`));
   } else {
     left.appendChild(el(`<div class="serving-label">Now serving</div><div class="serving-number">—</div><div class="serving-empty">No patient currently being seen</div>`));
   }
@@ -672,8 +687,9 @@ function renderQueue(){
         <div class="qrow">
           <div class="qnum">#${t.token_number}</div>
           <div class="qinfo"><div class="qname">${escapeHtml(t.patient_name)}</div><div class="qmeta">${t.source === 'WALKIN' ? 'Walk-in' : 'Online'}${t.patient_mobile ? ' · ' + escapeHtml(t.patient_mobile) : ''}</div></div>
-          <button class="btn ghost sm" data-noshow="${t.id}">No-show</button>
         </div>`);
+      row.appendChild(paymentPill(t));
+      row.appendChild(el(`<button class="btn ghost sm" data-noshow="${t.id}">No-show</button>`));
       list.appendChild(row);
     });
   } else {
@@ -699,10 +715,73 @@ function renderQueue(){
   wrap.querySelector('#btn-skip').addEventListener('click', skipCurrent);
   wrap.querySelector('#btn-complete').addEventListener('click', completeCurrent);
   wrap.querySelector('#btn-recall').addEventListener('click', recallCurrent);
-  wrap.querySelector('#btn-walkin').addEventListener('click', ()=>{ state.walkinOpen = true; state.walkinName=''; state.walkinMobile=''; state.walkinError=''; render(); });
+  wrap.querySelector('#btn-walkin').addEventListener('click', ()=>{ state.walkinOpen = true; state.walkinName=''; state.walkinMobile=''; state.walkinAmount=''; state.walkinError=''; render(); });
   wrap.querySelectorAll('[data-noshow]').forEach(b=> b.addEventListener('click', ()=> markNoShow(b.dataset.noshow)));
+  wrap.querySelectorAll('[data-payment-id]').forEach(b=> b.addEventListener('click', ()=>{
+    state.paymentModal = {
+      id: b.dataset.paymentId,
+      name: b.dataset.paymentName,
+      tokenNumber: b.dataset.paymentTokenNumber,
+      amountInput: b.dataset.paymentAmount || '',
+    };
+    state.paymentError = ''; render();
+  }));
 
   if (state.walkinOpen) renderWalkinModal();
+  if (state.paymentModal) renderPaymentModal();
+}
+
+function formatAmount(n){
+  const num = Number(n);
+  return Number.isInteger(num) ? String(num) : num.toFixed(2);
+}
+
+function paymentPill(t){
+  const hasAmount = t.amount_paid !== null && t.amount_paid !== undefined;
+  const label = hasAmount ? `₹${formatAmount(t.amount_paid)}` : '+ ₹ amount';
+  return el(`<button class="pay-pill${hasAmount?' set':''}" data-payment-id="${t.id}" data-payment-amount="${hasAmount?t.amount_paid:''}" data-payment-name="${escapeHtml(t.patient_name)}" data-payment-token-number="${t.token_number}">${label}</button>`);
+}
+
+async function submitPayment(clear){
+  const pm = state.paymentModal;
+  let amount;
+  if (clear){
+    amount = null;
+  } else if (pm.amountInput.trim() === ''){
+    amount = null;
+  } else {
+    amount = Number(pm.amountInput);
+    if (isNaN(amount) || amount < 0){ state.paymentError = 'Enter a valid positive amount'; render(); return; }
+  }
+  state.paymentSaving = true; state.paymentError = ''; render();
+  try{
+    await api('/queue/token/' + pm.id + '/payment', {method:'PATCH', body:{amount_paid: amount}});
+    state.paymentModal = null;
+    await loadQueue();
+  } catch(e){ state.paymentError = e.message; }
+  state.paymentSaving = false; render();
+}
+
+function renderPaymentModal(){
+  const pm = state.paymentModal;
+  const bg = el(`<div class="modal-bg"></div>`);
+  const modal = el(`<div class="modal"><h3>Amount collected</h3></div>`);
+  modal.appendChild(el(`<div style="color:var(--steel);font-size:12.5px;margin-bottom:10px;">${escapeHtml(pm.name)} — token #${pm.tokenNumber}</div>`));
+  modal.appendChild(el(`<div class="field"><label>Amount (₹, optional)</label><input type="text" inputmode="decimal" id="pay-amount" value="${escapeHtml(pm.amountInput)}" placeholder="e.g. 500"/></div>`));
+  if (state.paymentError) modal.appendChild(el(`<div class="err-msg">${escapeHtml(state.paymentError)}</div>`));
+  const acts = el(`<div class="modal-actions"></div>`);
+  acts.appendChild(el(`<button class="btn ghost" id="pay-clear" ${state.paymentSaving?'disabled':''}>Clear</button>`));
+  acts.appendChild(el(`<button class="btn ghost" id="pay-cancel" ${state.paymentSaving?'disabled':''}>Cancel</button>`));
+  acts.appendChild(el(`<button class="btn primary" id="pay-save" ${state.paymentSaving?'disabled':''}>${state.paymentSaving?'Saving…':'Save'}</button>`));
+  modal.appendChild(acts);
+  bg.appendChild(modal);
+  document.getElementById('root').appendChild(bg);
+
+  modal.querySelector('#pay-amount').addEventListener('input', e=> state.paymentModal.amountInput = e.target.value);
+  modal.querySelector('#pay-cancel').addEventListener('click', ()=>{ state.paymentModal = null; state.paymentError=''; render(); });
+  modal.querySelector('#pay-clear').addEventListener('click', ()=> submitPayment(true));
+  modal.querySelector('#pay-save').addEventListener('click', ()=> submitPayment(false));
+  bg.addEventListener('click', e=>{ if (e.target === bg){ state.paymentModal = null; state.paymentError=''; render(); } });
 }
 
 function renderWalkinModal(){
@@ -710,6 +789,7 @@ function renderWalkinModal(){
   const modal = el(`<div class="modal"><h3>Add walk-in patient</h3></div>`);
   modal.appendChild(el(`<div class="field"><label>Patient name</label><input type="text" id="w-name" value="${escapeHtml(state.walkinName)}"/></div>`));
   modal.appendChild(el(`<div class="field"><label>Mobile (optional)</label><input type="tel" id="w-mobile" value="${escapeHtml(state.walkinMobile)}" placeholder="+91XXXXXXXXXX"/></div>`));
+  modal.appendChild(el(`<div class="field"><label>Amount collected (optional)</label><input type="text" inputmode="decimal" id="w-amount" value="${escapeHtml(state.walkinAmount)}" placeholder="e.g. 500"/></div>`));
   if (state.walkinError) modal.appendChild(el(`<div class="err-msg">${escapeHtml(state.walkinError)}</div>`));
   const acts = el(`<div class="modal-actions"></div>`);
   acts.appendChild(el(`<button class="btn ghost" id="w-cancel">Cancel</button>`));
@@ -720,6 +800,7 @@ function renderWalkinModal(){
 
   modal.querySelector('#w-name').addEventListener('input', e=> state.walkinName = e.target.value);
   modal.querySelector('#w-mobile').addEventListener('input', e=> state.walkinMobile = e.target.value);
+  modal.querySelector('#w-amount').addEventListener('input', e=> state.walkinAmount = e.target.value);
   modal.querySelector('#w-cancel').addEventListener('click', ()=>{ state.walkinOpen=false; render(); });
   modal.querySelector('#w-save').addEventListener('click', submitWalkin);
   bg.addEventListener('click', e=>{ if (e.target === bg){ state.walkinOpen=false; render(); } });
@@ -859,6 +940,7 @@ function renderPatientDetailModal(){
           <div class="qrow">
             <div class="qnum" style="font-size:14px;">#${h.token_number}</div>
             <div class="qinfo"><div class="qname">${escapeHtml(h.doctor_name)} · ${h.status}</div><div class="qmeta">${h.queue_date} · ${h.source === 'WALKIN' ? 'Walk-in' : 'Online'}</div></div>
+            ${(h.amount_paid !== null && h.amount_paid !== undefined) ? `<div class="pay-pill set" style="cursor:default;">₹${formatAmount(h.amount_paid)}</div>` : ''}
           </div>`));
       });
     } else {

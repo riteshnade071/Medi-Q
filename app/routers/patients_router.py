@@ -50,6 +50,7 @@ def get_patient(
             created_at=t.created_at,
             called_at=t.called_at,
             completed_at=t.completed_at,
+            amount_paid=t.amount_paid,
         ))
 
     return schemas.PatientDetailOut(

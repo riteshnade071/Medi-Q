@@ -141,6 +141,7 @@ class Token(Base):
     checked_in_at = Column(DateTime, nullable=True)
     called_at = Column(DateTime, nullable=True)
     completed_at = Column(DateTime, nullable=True)
+    amount_paid = Column(Float, nullable=True)  # consultation fee collected — optional, staff-entered, rupees
 
     doctor = relationship("Doctor", back_populates="tokens")
     patient = relationship("Patient", back_populates="tokens")

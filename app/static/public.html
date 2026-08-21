@@ -129,9 +129,36 @@ async function submitBooking(){
     });
     state.booking = data; state.step = 'confirmed';
     sessionStorage.setItem('cq_last_booking', data.public_code);
+    // So a page refresh (or a copied/bookmarked URL) can restore this booking
+    // instead of dropping the patient back at the doctor-picker screen.
+    history.replaceState(null, '', location.pathname + '?code=' + encodeURIComponent(data.public_code));
     startStatusPolling(data.public_code);
   } catch(e){ state.bookingError = e.message; }
   state.bookingLoading = false; render();
+}
+
+async function restoreBooking(code){
+  try{
+    const s = await api('/public/status/' + code);
+    state.booking = {
+      public_code: code,
+      token_number: s.token_number,
+      clinic_name: s.clinic_name,
+      doctor_name: s.doctor_name,
+      ahead_count: s.ahead_count,
+      estimated_wait_minutes: s.estimated_wait_minutes,
+      current_serving: s.current_serving,
+    };
+    state.status = s;
+    state.step = 'confirmed';
+    render();
+    startStatusPolling(code);
+  } catch(e){
+    // Stale/invalid code (e.g. from a previous day) — fall back to a fresh booking flow.
+    sessionStorage.removeItem('cq_last_booking');
+    history.replaceState(null, '', location.pathname);
+    loadDoctorsForSlug();
+  }
 }
 
 let statusTimer = null;
@@ -302,6 +329,11 @@ function render(){
     startBoardPolling();
   } else {
     if (!SLUG){ document.getElementById('root').innerHTML = '<div class="wrap"><div class="card err-msg">Invalid booking link.</div></div>'; return; }
+    if (savedCode){
+      document.getElementById('root').innerHTML = '<div class="wrap"><div class="card center" style="color:var(--steel);padding:30px 0;">Loading your booking…</div></div>';
+      restoreBooking(savedCode);
+      return; // restoreBooking renders itself once the status loads
+    }
     loadDoctorsForSlug();
   }
   render();

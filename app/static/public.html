@@ -43,18 +43,24 @@
   .token-display{text-align:center;padding:10px 0 4px;}
   .token-num{font-family:'IBM Plex Mono',monospace;font-size:56px;font-weight:700;color:var(--teal);line-height:1;}
   .token-label{font-size:11px;color:var(--steel);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px;}
+  .token-label .hi{display:block;text-transform:none;letter-spacing:normal;margin-top:1px;}
   .status-row{display:flex;justify-content:space-around;text-align:center;margin-top:20px;padding-top:18px;border-top:1px solid var(--line);}
   .status-row div{flex:1;}
   .status-row .n{font-family:'IBM Plex Mono',monospace;font-size:22px;font-weight:700;}
   .status-row .l{font-size:10.5px;color:var(--steel);text-transform:uppercase;letter-spacing:.05em;margin-top:2px;}
+  .status-row .l-hi{display:block;font-size:10.5px;color:var(--steel);text-transform:none;letter-spacing:normal;margin-top:1px;}
   .alert-banner{margin-top:16px;padding:12px 14px;border-radius:10px;text-align:center;font-size:13px;font-weight:700;}
   .alert-banner.now{background:var(--coral-soft);color:var(--coral);border:1px solid rgba(255,107,107,.35);}
   .alert-banner.soon{background:var(--amber-soft);color:var(--amber);border:1px solid rgba(245,165,36,.35);}
   .board-serving{text-align:center;padding:30px 10px;}
   .board-serving .n{font-family:'IBM Plex Mono',monospace;font-size:96px;font-weight:800;color:var(--teal);line-height:1;}
   .board-serving .l{font-size:12px;color:var(--steel);text-transform:uppercase;letter-spacing:.1em;margin-top:10px;}
+  .board-serving .l-hi{display:block;font-size:12px;color:var(--steel);text-transform:none;letter-spacing:normal;margin-top:2px;}
   .waiting-pill{text-align:center;color:var(--steel);font-size:13px;margin-top:6px;}
   .updated{text-align:center;color:var(--steel);font-size:11px;margin-top:16px;}
+  .consent-note{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:14px 0 4px;}
+  .consent-note .en{font-size:11.5px;color:var(--steel);line-height:1.5;}
+  .consent-note .hi{font-size:12.5px;color:var(--text);line-height:1.5;margin-top:4px;}
   .link{color:var(--teal);text-decoration:none;font-weight:600;font-size:13px;}
   .center{text-align:center;}
 </style>
@@ -235,6 +241,11 @@ function renderForm(){
   card.appendChild(el(`<div class="doctor-name">${escapeHtml(state.selectedDoctor.specialization || 'General')} · ${escapeHtml(state.selectedDoctor.clinic_name)}</div>`));
   card.appendChild(el(`<div class="field"><label>Your name</label><input type="text" id="p-name" value="${escapeHtml(state.patientName)}" placeholder="Full name"/></div>`));
   card.appendChild(el(`<div class="field"><label>Mobile (for WhatsApp updates)</label><input type="tel" id="p-mobile" value="${escapeHtml(state.patientMobile)}" placeholder="+91XXXXXXXXXX"/></div>`));
+  card.appendChild(el(`
+    <div class="consent-note">
+      <div class="en">Your details are shared only with this clinic and used only to manage your queue token.</div>
+      <div class="hi">आपकी जानकारी सिर्फ इस क्लिनिक के साथ साझा की जाएगी और सिर्फ आपका टोकन/कतार संभालने के लिए उपयोग होगी।</div>
+    </div>`));
   if (state.bookingError) card.appendChild(el(`<div class="err-msg">${escapeHtml(state.bookingError)}</div>`));
   card.appendChild(el(`<button class="btn" id="p-submit" ${state.bookingLoading?'disabled':''}>${state.bookingLoading?'Booking…':'Book my token'}</button>`));
   card.appendChild(el(`<button class="btn ghost" id="p-back">Back</button>`));
@@ -260,14 +271,14 @@ function renderConfirmed(){
 
   card.appendChild(el(`
     <div class="token-display">
-      <div class="token-label">Your token</div>
+      <div class="token-label">Your token<span class="hi">आपका टोकन</span></div>
       <div class="token-num">#${b.token_number}</div>
     </div>`));
 
   const row = el(`<div class="status-row"></div>`);
-  row.appendChild(el(`<div><div class="n">${serving ?? '—'}</div><div class="l">Now serving</div></div>`));
-  row.appendChild(el(`<div><div class="n">${ahead}</div><div class="l">Ahead of you</div></div>`));
-  row.appendChild(el(`<div><div class="n">~${wait}m</div><div class="l">Est. wait</div></div>`));
+  row.appendChild(el(`<div><div class="n">${serving ?? '—'}</div><div class="l">Now serving<span class="l-hi">अभी सेवा में</span></div></div>`));
+  row.appendChild(el(`<div><div class="n">${ahead}</div><div class="l">Ahead of you<span class="l-hi">आपसे पहले</span></div></div>`));
+  row.appendChild(el(`<div><div class="n">~${wait}m</div><div class="l">Est. wait<span class="l-hi">अनुमानित प्रतीक्षा</span></div></div>`));
   card.appendChild(row);
 
   if (status === 'SERVING'){
@@ -308,9 +319,9 @@ function renderBoard(){
     card.appendChild(el(`
       <div class="board-serving">
         <div class="n">${state.board.current_serving ?? '—'}</div>
-        <div class="l">Now serving</div>
+        <div class="l">Now serving<span class="l-hi">अभी सेवा में</span></div>
       </div>`));
-    card.appendChild(el(`<div class="waiting-pill">${state.board.waiting_count} patient(s) waiting</div>`));
+    card.appendChild(el(`<div class="waiting-pill">${state.board.waiting_count} patient(s) waiting <span style="color:var(--steel);">· ${state.board.waiting_count} लोग प्रतीक्षा में</span></div>`));
     card.appendChild(el(`<div class="updated">Updated ${new Date(state.board.updated_at).toLocaleTimeString()}</div>`));
   }
   shell(card);
